@@ -1,7 +1,9 @@
 // Xmrcord: re-apply the Equicord -> Xmrcord branding on user-visible surfaces.
-// Idempotent (the old strings simply won't match on a second run). Run after a
-// plugin sync from upstream (which overwrites src/plugins). Internal symbols
-// (VencordNative, window.Vencord, webpack, EQUICORD_* env names) are left as-is.
+// Idempotent (old strings won't match on a second run). Run after a plugin sync from
+// upstream. Internal identifiers are deliberately left as-is: env names (EQUICORD_*),
+// the equicordplugins dir, the equicord:// protocol, equicord.org / Equicloud / cloud
+// backend URLs (real external services), DataStore keys (Equicord*), CSS class ids and
+// code identifiers (isEquicordPlugin, EquicordSettings, getEquicordDonorBadges, IS_EQUIBOP).
 import { readFileSync, writeFileSync } from "fs";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
@@ -34,6 +36,46 @@ const EDITS = {
     "src/Vencord.ts": [
         ["Equicord has been updated!", "Xmrcord has been updated!"],
         ["A new version of Equicord is available!", "A new version of Xmrcord is available!"],
+    ],
+    "scripts/build/common.mjs": [
+        ["// Equicord ${gitHash}", "// Xmrcord ${gitHash}"],
+    ],
+    "src/api/Commands/index.ts": [
+        ['username: "Equicord"', 'username: "Xmrcord"'],
+    ],
+    "src/api/SettingsSync/offline.ts": [
+        ["Equicord Settings Backup", "Xmrcord Settings Backup"],
+    ],
+    "src/components/settings/tabs/changelog/NewPluginsSection.tsx": [
+        ["This plugin is required for Equicord to function.", "This plugin is required for Xmrcord to function."],
+    ],
+    "src/components/settings/tabs/plugins/index.tsx": [
+        ["Developer version of Equicord", "Developer version of Xmrcord"],
+        ["Web Browser version of Equicord", "Web Browser version of Xmrcord"],
+        ["This plugin is required for Equicord to function.", "This plugin is required for Xmrcord to function."],
+    ],
+    "src/components/settings/tabs/updater/index.tsx": [
+        ["When enabled, Equicord will automatically", "When enabled, Xmrcord will automatically"],
+        ["Receive a notification when Equicord finishes", "Receive a notification when Xmrcord finishes"],
+        ["Equibop & Equicord", "Equibop & Xmrcord"],
+        ["Equibop and Equicord are two separate things. This updater is for Equicord.", "Equibop and Xmrcord are two separate things. This updater is for Xmrcord."],
+    ],
+    "src/components/settings/tabs/vencord/NotificationSettings.tsx": [
+        ["Always use Equicord notifications", "Always use Xmrcord notifications"],
+    ],
+    "src/components/settings/tabs/vencord/index.tsx": [
+        ["Since you've contributed to Equicord you now have a cool new badge!", "Since you've contributed to Xmrcord you now have a cool new badge!"],
+        ["Configure how Equicord behaves and integrates with Discord.", "Configure how Xmrcord behaves and integrates with Discord."],
+        ["Equicord Settings", "Xmrcord Settings"],
+    ],
+    "src/plugins/_core/supportHelper.tsx": [
+        ["Equicord DevBuild", "Xmrcord DevBuild"],
+        ["Send Equicord debug info", "Send Xmrcord debug info"],
+        ["Send Equicord plugin list", "Send Xmrcord plugin list"],
+    ],
+    "src/plugins/_api/badges/index.tsx": [
+        ["Equicord Contributor", "Xmrcord Contributor"],
+        ["Equicord Translator", "Xmrcord Translator"],
     ],
 };
 

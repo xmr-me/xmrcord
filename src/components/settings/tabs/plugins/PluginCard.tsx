@@ -17,10 +17,15 @@ import { React, showToast } from "@webpack/common";
 
 import { PluginMeta } from "~plugins";
 
+import moneroChan from "file://moneroChan.png?base64";
 import { openPluginModal } from "./PluginModal";
 
 const logger = new Logger("PluginCard");
 const cl = classNameFactory("vc-plugins-");
+
+// Plugins that are Xmrcord's own (they live in equicordplugins/ but get the Monero-chan badge).
+export const XMRCORD_PLUGINS = ["BadgeVoiceFinder", "MessageCleaner", "ServerFaker", "FollowVoiceUser"];
+const MONERO_CHAN_SRC = `data:image/png;base64,${moneroChan}`;
 interface PluginCardProps extends React.HTMLProps<HTMLDivElement> {
     plugin: Plugin;
     disabled?: boolean;
@@ -33,6 +38,7 @@ interface PluginCardProps extends React.HTMLProps<HTMLDivElement> {
 export function PluginCard({ plugin, disabled, onRestartNeeded, onMouseEnter, onMouseLeave, isNew }: PluginCardProps) {
     const settings = Settings.plugins[plugin.name];
     const pluginMeta = PluginMeta[plugin.name];
+    const isXmrcordPlugin = XMRCORD_PLUGINS.includes(plugin.name);
     const isEquicordPlugin = pluginMeta.folderName.startsWith("src/equicordplugins/") ?? false;
     const isVencordPlugin = pluginMeta.folderName.startsWith("src/plugins/") ?? false;
     const isUserPlugin = pluginMeta?.userPlugin ?? false;
@@ -90,6 +96,12 @@ export function PluginCard({ plugin, disabled, onRestartNeeded, onMouseEnter, on
 
     const pluginInfo = [
         {
+            condition: isXmrcordPlugin,
+            src: MONERO_CHAN_SRC,
+            alt: "Xmrcord",
+            title: "Plugin do Xmrcord"
+        },
+        {
             condition: isModifiedPlugin,
             src: "https://equicord.org/assets/icons/equicord/modified.png",
             alt: "Modified",
@@ -98,8 +110,8 @@ export function PluginCard({ plugin, disabled, onRestartNeeded, onMouseEnter, on
         {
             condition: isEquicordPlugin,
             src: "https://equicord.org/assets/favicon.png",
-            alt: "Equicord",
-            title: "Equicord Plugin"
+            alt: "Xmrcord",
+            title: "Plugin do Xmrcord"
         },
         {
             condition: isVencordPlugin,
