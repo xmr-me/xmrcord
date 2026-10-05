@@ -102,7 +102,7 @@ namespace XmrcordInstaller
         public MainWindow()
         {
             flavors.Add(new Flavor("Discord Stable", "Discord", "Discord", Hex("#5865F2")));
-            flavors.Add(new Flavor("Discord PTB", "DiscordPTB", "DiscordPTB", Hex("#4752c4")));
+            flavors.Add(new Flavor("Discord PTB", "DiscordPTB", "DiscordPTB", Hex("#5865F2"))); // mirrors Stable
             flavors.Add(new Flavor("Discord Canary", "DiscordCanary", "DiscordCanary", Hex("#f6b40c")));
 
             CheckTpl = BuildCheckTemplate();
@@ -352,11 +352,21 @@ namespace XmrcordInstaller
         // =====================================================================
         void Detect()
         {
+            foreach (var f in flavors) ResolveResources(f);
+
+            // Discord PTB shows the same icon as Discord Stable (per request).
+            ImageSource stableSrc = null;
+            var stable = flavors[0];
+            if (stable.ResourcesPath != null)
+            {
+                var exe = Path.Combine(Path.GetDirectoryName(stable.ResourcesPath), stable.ProcessName + ".exe");
+                if (File.Exists(exe)) stableSrc = ExtractIcon(exe);
+            }
+
             int found = 0;
             foreach (var f in flavors)
             {
-                ResolveResources(f);
-                SetFlavorIcon(f);
+                SetFlavorIcon(f, stableSrc);
 
                 if (f.ResourcesPath != null)
                 {
@@ -399,29 +409,34 @@ namespace XmrcordInstaller
             catch { }
         }
 
-        void SetFlavorIcon(Flavor f)
+        void SetFlavorIcon(Flavor f, ImageSource stableSrc)
         {
-            UIElement content = null;
-            if (f.ResourcesPath != null)
+            bool isPtb = f.FolderName == "DiscordPTB";
+
+            // PTB always mirrors Stable's icon; the others use their own installed icon.
+            ImageSource src = null;
+            if (isPtb) src = stableSrc;
+            else if (f.ResourcesPath != null)
             {
                 var exe = Path.Combine(Path.GetDirectoryName(f.ResourcesPath), f.ProcessName + ".exe");
-                var src = File.Exists(exe) ? ExtractIcon(exe) : null;
-                if (src != null)
-                {
-                    var img = new Image();
-                    img.Source = src;
-                    img.Stretch = Stretch.UniformToFill;
-                    RenderOptions.SetBitmapScalingMode(img, BitmapScalingMode.HighQuality);
-                    content = img;
-                }
+                if (File.Exists(exe)) src = ExtractIcon(exe);
             }
-            if (content == null)
-            {
-                content = BrandTile(f);
-                f.IconHost.Opacity = f.ResourcesPath != null ? 1.0 : 0.4;
-            }
-            else f.IconHost.Opacity = 1.0;
 
+            UIElement content;
+            if (src != null)
+            {
+                var img = new Image();
+                img.Source = src;
+                img.Stretch = Stretch.UniformToFill;
+                RenderOptions.SetBitmapScalingMode(img, BitmapScalingMode.HighQuality);
+                content = img;
+                f.IconHost.Opacity = 1.0;
+            }
+            else
+            {
+                content = BrandTile(f); // PTB brand == Stable blurple, so this still matches Stable
+                f.IconHost.Opacity = (isPtb || f.ResourcesPath != null) ? 1.0 : 0.4;
+            }
             f.IconHost.Child = content;
         }
 
