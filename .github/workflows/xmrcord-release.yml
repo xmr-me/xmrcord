@@ -1,0 +1,73 @@
+name: Xmrcord Release
+# Rebuilds Xmrcord on every push to main and publishes the desktop files to the "latest"
+# release. Installed clients read this release and auto-update themselves.
+
+on:
+    push:
+        branches:
+            - main
+        paths:
+            - .github/workflows/xmrcord-release.yml
+            - src/**
+            - browser/**
+            - scripts/build/**
+            - package.json
+            - pnpm-lock.yaml
+    workflow_dispatch: {}
+
+concurrency:
+    group: xmrcord-release
+    cancel-in-progress: true
+
+env:
+    FORCE_COLOR: true
+    # Baked into the build so clients check THIS repo's releases for updates.
+    VENCORD_REMOTE: ${{ github.repository }}
+
+permissions:
+    contents: write
+
+jobs:
+    Release:
+        runs-on: ubuntu-latest
+
+        steps:
+            - uses: actions/checkout@v4
+
+            - uses: pnpm/action-setup@v4 # version comes from the packageManager key in package.json
+
+            - name: Use Node.js 22
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22
+                  cache: "pnpm"
+
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+
+            - name: Build standalone (desktop)
+              run: pnpm build --standalone
+
+            - name: Generate plugin list
+              run: pnpm generatePluginJson dist/plugins.json dist/plugin-readmes.json || true
+
+            - name: Drop sourcemaps and web-only leftovers
+              run: |
+                  cd dist
+                  rm -f *.map Vencord.user.css || true
+                  ls -la
+
+            - name: Publish to the "latest" release
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: |
+                  TAG=$(git rev-parse --short HEAD)
+                  TITLE="Xmrcord $TAG"
+                  NOTES="Build automática de \`$TAG\`. Instalada pelo XmrcordInstaller; os clientes já instalados se atualizam sozinhos."
+
+                  if gh release view latest >/dev/null 2>&1; then
+                      gh release edit latest --title "$TITLE" --notes "$NOTES" --latest
+                      gh release upload latest --clobber dist/*
+                  else
+                      gh release create latest dist/* --title "$TITLE" --notes "$NOTES" --latest
+                  fi
