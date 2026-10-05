@@ -5,15 +5,16 @@
  */
 
 import ErrorBoundary from "@components/ErrorBoundary";
+import { FormSwitch } from "@components/FormSwitch";
 import { TooltipContainer } from "@components/TooltipContainer";
 import { classNameFactory } from "@utils/css";
 import { Margins } from "@utils/margins";
 import { classes } from "@utils/misc";
 import { RenderModalProps } from "@vencord/discord-types";
 import { findCssClassesLazy } from "@webpack";
-import { Modal,openModal, TabBar, Timestamp, useState } from "@webpack/common";
+import { Modal, openModal, TabBar, Timestamp, useState } from "@webpack/common";
 
-import { parseEditContent } from ".";
+import { parseEditContent, settings } from ".";
 
 const CodeContainerClasses = findCssClassesLazy("markup", "codeContainer");
 const MiscClasses = findCssClassesLazy("messageContent", "markupRtl");
@@ -33,6 +34,7 @@ export function openHistoryModal(message: any) {
 
 export function HistoryModal({ modalProps, message }: { modalProps: RenderModalProps; message: any; }) {
     const [currentTab, setCurrentTab] = useState(message.editHistory.length);
+    const [showDiff, setShowDiff] = useState(settings.store.showEditDiffs);
     const timestamps = [message.firstEditTimestamp, ...message.editHistory.map(m => m.timestamp)];
     const contents = [...message.editHistory.map(m => m.content), message.content];
 
@@ -42,6 +44,7 @@ export function HistoryModal({ modalProps, message }: { modalProps: RenderModalP
             size="lg"
             title="Message Edit History"
         >
+            <FormSwitch title="Show Diff" value={showDiff} onChange={setShowDiff} />
             <TabBar
                 type="top"
                 look="brand"
@@ -83,7 +86,7 @@ export function HistoryModal({ modalProps, message }: { modalProps: RenderModalP
             </TabBar>
 
             <div className={classes(CodeContainerClasses.markup, MiscClasses.messageContent, Margins.top20)}>
-                {parseEditContent(contents[currentTab], message)}
+                {parseEditContent(contents[currentTab], message, showDiff ? currentTab === contents.length - 1 ? undefined : contents[contents.length - 1] : undefined)}
             </div>
         </Modal>
     );

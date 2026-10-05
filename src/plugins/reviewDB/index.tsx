@@ -19,7 +19,6 @@
 import "./style.css";
 
 import { NavContextMenuPatchCallback } from "@api/ContextMenu";
-import ErrorBoundary from "@components/ErrorBoundary";
 import { OpenExternalIcon } from "@components/Icons";
 import { Paragraph } from "@components/Paragraph";
 import { Span } from "@components/Span";
@@ -72,8 +71,10 @@ const userContextPatch: NavContextMenuPatchCallback = (children, { user }: { use
 export default definePlugin({
     name: "ReviewDB",
     description: "Review other users (Adds a new settings to profiles)",
+    dependencies: ["ProfileCollectionsAPI"],
     tags: ["Friends", "Servers"],
     authors: [Devs.mantikafasi, Devs.Ven],
+    isModified: true,
 
     settings,
     contextMenus: {
@@ -83,26 +84,6 @@ export default definePlugin({
         "user-profile-actions": userContextPatch,
         "user-profile-overflow-menu": userContextPatch
     },
-
-    patches: [
-        {
-            // DM profile sidebar
-            find: ".SIDEBAR,disableToolbar:",
-            replacement: {
-                match: /user:(\i),widgets:.{0,100}?\}\),(?=.{0,100}unownedWishlistItems:\i,wishlistId:\i)/,
-                replace: "$&$self.renderProfileComponent({user:$1,isSideBar:true}),"
-            }
-        },
-        {
-            // User popout
-            // Same find as ShowConnections
-            find: '"UserProfilePopout");',
-            replacement: {
-                match: /user:(\i),widgets:.{0,100}?\}\),/,
-                replace: "$&$self.renderProfileComponent({user:$1}),"
-            }
-        }
-    ],
 
     flux: {
         CONNECTION_OPEN: initAuth,
@@ -166,61 +147,64 @@ export default definePlugin({
         }, 4000);
     },
 
-    renderProfileComponent: ErrorBoundary.wrap(({ user, isSideBar = false }: { user: User; isSideBar?: boolean; }) => {
-        const [reviewData] = useAwaiter(() => getReviews(user.id, { limit: 4 }), { deps: [user.id], fallbackValue: null });
+    renderProfileCollection: {
+        priority: 0,
+        render: ({ user, isSideBar = false, isRedesignEnabled = false }: { user: User; isSideBar?: boolean; isRedesignEnabled?: boolean; }) => {
+            const [reviewData] = useAwaiter(() => getReviews(user.id, { limit: 4 }), { deps: [user.id], fallbackValue: null });
 
-        // Discord are masters at using a crap ton of html elements and css classes to create a simple ui that could have
-        // been made with less than half of the number of elements, so we have to do this insanity to replicate their ui
-        const reviewsSection = (
-            <section className={ProfileCardClasses.container}>
-                <ul className={ProfileCardClasses.cardsList} tabIndex={-1}>
-                    <li className={ProfileCardClasses.firstCardContainer}>
-                        <Clickable
-                            className={classes(ProfileCardContainerClasses.breadcrumb, reviewData?.hasOptedOut && cl("profile-popout-disabled"))}
-                            onClick={() => !reviewData?.hasOptedOut && openReviewsModal(user.id, user.username, ReviewType.User)}
-                        >
-                            <div className={classes(ProfileCardOverlayClasses.overlay, ProfileCardContainerClasses.innerContainer, ProfileCardClasses.card)}>
-                                <Paragraph size={isSideBar ? "sm" : "xs"} weight="medium">User Reviews</Paragraph>
-                                {!!reviewData?.reviewCount
-                                    ? (
-                                        <div className={ProfileCardContainerClasses.icons}>
-                                            {reviewData.reviews
-                                                .filter(review => review.id !== 0)
-                                                .slice(0, 4)
-                                                .map((review, idx) => {
-                                                    const showCount = idx === 3 && reviewData.reviewCount > 4;
+            // Discord are masters at using a crap ton of html elements and css classes to create a simple ui that could have
+            // been made with less than half of the number of elements, so we have to do this insanity to replicate their ui
+            const reviewsSection = (
+                <section className={ProfileCardClasses.container}>
+                    <ul className={ProfileCardClasses.cardsList} tabIndex={-1}>
+                        <li className={ProfileCardClasses.firstCardContainer}>
+                            <Clickable
+                                className={classes(ProfileCardContainerClasses.breadcrumb, reviewData?.hasOptedOut && cl("profile-popout-disabled"))}
+                                onClick={() => !reviewData?.hasOptedOut && openReviewsModal(user.id, user.username, ReviewType.User)}
+                            >
+                                <div className={classes(ProfileCardOverlayClasses.overlay, ProfileCardContainerClasses.innerContainer, ProfileCardClasses.card)}>
+                                    <Paragraph size={isSideBar ? "sm" : "xs"} weight="medium">User Reviews</Paragraph>
+                                    {!!reviewData?.reviewCount
+                                        ? (
+                                            <div className={ProfileCardContainerClasses.icons}>
+                                                {reviewData.reviews
+                                                    .filter(review => review.id !== 0)
+                                                    .slice(0, 4)
+                                                    .map((review, idx) => {
+                                                        const showCount = idx === 3 && reviewData.reviewCount > 4;
 
-                                                    return (
-                                                        <div className={ProfileCardContainerClasses.icon} key={review.id}>
-                                                            <img
-                                                                src={review.sender.profilePhoto}
-                                                                alt={review.sender.username}
-                                                                className={showCount ? ProfileCardContainerClasses.displayCount : undefined}
-                                                                onError={e => e.currentTarget.src = IconUtils.getDefaultAvatarURL(review.sender.discordID)}
-                                                            />
-                                                            {showCount && (
-                                                                <div className={ProfileCardContainerClasses.displayCountText}>
-                                                                    <Span className={ProfileCardContainerClasses.displayCountTextColor} size="xs" weight="medium" defaultColor={false}>
-                                                                        +{reviewData.reviewCount - 3}
-                                                                    </Span>
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    );
-                                                })}
-                                        </div>
-                                    )
-                                    : <Paragraph size={isSideBar ? "sm" : "xs"}>{reviewData?.hasOptedOut ? "User opted out" : "No reviews yet"}</Paragraph>
-                                }
-                            </div>
-                        </Clickable>
-                    </li>
-                </ul>
-            </section>
-        );
+                                                        return (
+                                                            <div className={ProfileCardContainerClasses.icon} key={review.id}>
+                                                                <img
+                                                                    src={review.sender.profilePhoto}
+                                                                    alt={review.sender.username}
+                                                                    className={showCount ? ProfileCardContainerClasses.displayCount : undefined}
+                                                                    onError={e => e.currentTarget.src = IconUtils.getDefaultAvatarURL(review.sender.discordID)}
+                                                                />
+                                                                {showCount && (
+                                                                    <div className={ProfileCardContainerClasses.displayCountText}>
+                                                                        <Span className={ProfileCardContainerClasses.displayCountTextColor} size="xs" weight="medium" defaultColor={false}>
+                                                                            +{reviewData.reviewCount - 4}
+                                                                        </Span>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })}
+                                            </div>
+                                        )
+                                        : <Paragraph size={isSideBar ? "sm" : "xs"}>{reviewData?.hasOptedOut ? "User opted out" : "No reviews yet"}</Paragraph>
+                                    }
+                                </div>
+                            </Clickable>
+                        </li>
+                    </ul>
+                </section>
+            );
 
-        return isSideBar
-            ? <div className={DMSideBarClasses.widgetPreviews}>{reviewsSection}</div>
-            : reviewsSection;
-    }, { noop: true })
+            return isSideBar && !isRedesignEnabled
+                ? <div className={DMSideBarClasses.widgetPreviews}>{reviewsSection}</div>
+                : reviewsSection;
+        },
+    },
 });

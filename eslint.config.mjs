@@ -5,15 +5,15 @@
  */
 
 import stylistic from "@stylistic/eslint-plugin";
-import pathAlias from "eslint-plugin-path-alias";
+import { defineConfig } from "eslint/config";
 import react from "eslint-plugin-react";
 import header from "eslint-plugin-simple-header";
 import simpleImportSort from "eslint-plugin-simple-import-sort";
 import unusedImports from "eslint-plugin-unused-imports";
 import tseslint from "typescript-eslint";
 
-export default tseslint.config(
-    { ignores: ["dist", "browser", "packages/vencord-types"] },
+export default defineConfig(
+    { ignores: ["dist", "browser", "packages/vencord-types", "misc/bundle", "misc/scripts"] },
     {
         files: ["src/**/*.{tsx,ts,mts,mjs,js,jsx}", "eslint.config.mjs"],
         settings: {
@@ -37,8 +37,7 @@ export default tseslint.config(
             "@stylistic": stylistic,
             "@typescript-eslint": tseslint.plugin,
             "simple-import-sort": simpleImportSort,
-            "unused-imports": unusedImports,
-            "path-alias": pathAlias
+            "unused-imports": unusedImports
         },
         settings: {
             "import/resolver": {
@@ -67,7 +66,7 @@ export default tseslint.config(
             "simple-header/header": [
                 "error",
                 {
-                    "files": ["scripts/header-new.txt", "scripts/header-old.txt"],
+                    "files": [`${import.meta.dirname}/scripts/header-new.txt`, `${import.meta.dirname}/scripts/header-old.txt`],
                     "templates": { "author": [".*", "Vendicated and contributors"] }
                 }
             ],
@@ -88,6 +87,7 @@ export default tseslint.config(
             "@stylistic/object-curly-spacing": ["error", "always"],
             "@stylistic/spaced-comment": ["error", "always", { "markers": ["!"] }],
             "@stylistic/no-extra-semi": "error",
+            "no-multiple-empty-lines": ["error", { "max": 1, "maxBOF": 0, "maxEOF": 0 }],
 
             // TS Rules
             "@stylistic/function-call-spacing": ["error", "never"],
@@ -142,8 +142,7 @@ export default tseslint.config(
             // Plugin Rules
             "simple-import-sort/imports": "error",
             "simple-import-sort/exports": "error",
-            "unused-imports/no-unused-imports": "error",
-            "path-alias/no-relative": "error"
+            "unused-imports/no-unused-imports": "error"
         }
     }
 );

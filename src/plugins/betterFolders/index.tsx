@@ -23,8 +23,8 @@ import { Devs } from "@utils/constants";
 import { getIntlMessage } from "@utils/discord";
 import { Logger } from "@utils/Logger";
 import definePlugin, { OptionType } from "@utils/types";
-import { findByPropsLazy, findStoreLazy } from "@webpack";
-import { FluxDispatcher } from "@webpack/common";
+import { findByPropsLazy } from "@webpack";
+import { ExpandedGuildFolderStore, FluxDispatcher, SortedGuildStore } from "@webpack/common";
 import { ReactNode } from "react";
 
 import FolderSideBar from "./FolderSideBar";
@@ -35,8 +35,6 @@ enum FolderIconDisplay {
     MoreThanOneFolderExpanded
 }
 
-export const ExpandedGuildFolderStore = findStoreLazy("ExpandedGuildFolderStore");
-export const SortedGuildStore = findStoreLazy("SortedGuildStore");
 const FolderUtils = findByPropsLazy("move", "toggleGuildFolderExpand");
 
 let lastGuildId = null as string | null;
@@ -143,6 +141,7 @@ export default definePlugin({
     name: "BetterFolders",
     description: "Shows server folders on dedicated sidebar and adds folder related improvements",
     authors: [Devs.juby, Devs.AutumnVN, Devs.Nuckyz],
+    isModified: true,
     tags: ["Organisation", "Servers", "Appearance"],
     settings,
 
@@ -262,7 +261,7 @@ export default definePlugin({
                     replace: (m, conditions, props) => `${m},${conditions}$self.FolderSideBar(${props})`
                 },
                 {
-                    // Add grid styles to fix aligment with other visual refresh elements
+                    // Add grid styles to fix alignment with other visual refresh elements
                     match: /(?<=className:)\i\.\i(?=,"data-fullscreen")/,
                     replace: `"${GRID_STYLE_NAME} "+$&`
                 }
@@ -327,7 +326,6 @@ export default definePlugin({
 
     FolderSideBar,
     closeFolders,
-
 
     wrapGuildNodeComponent(node: any, originalComponent: () => ReactNode, isBetterFolders: boolean, expandedFolderIds?: Set<any>) {
         if (

@@ -5,6 +5,7 @@
  */
 
 import { Settings } from "@api/Settings";
+import { reporterData } from "@debug/reporterData";
 import { traceFunctionWithResults } from "@debug/Tracer";
 import { makeLazy } from "@utils/lazy";
 import { Logger } from "@utils/Logger";
@@ -574,10 +575,26 @@ function patchFactory(moduleId: PropertyKey, originalFactory: AnyModuleFactory):
                         if (IS_DEV) {
                             logger.debug("Function Source:\n", patchedCode);
                         }
+                        if (IS_COMPANION_TEST)
+                            reporterData.failedPatches.hadNoEffect.push({
+                                ...patch,
+                                id: moduleId
+                            });
                     }
 
                     if (patch.group) {
                         logger.warn(`Undoing patch group ${patch.find} by ${patch.plugin} because replacement ${replacement.match} had no effect`);
+
+                        if (markedAsPatched) {
+                            patchedBy.delete(patch.plugin);
+                        }
+
+                        if (IS_COMPANION_TEST)
+                            reporterData.failedPatches.undoingPatchGroup.push({
+                                ...patch,
+                                id: moduleId
+                            });
+
                         shouldRestorePrevious = true;
                         break;
                     }
@@ -607,6 +624,14 @@ function patchFactory(moduleId: PropertyKey, originalFactory: AnyModuleFactory):
                 if (!shouldSuppressError) {
                     logger.error(`Patch by ${patch.plugin} errored (Module id is ${String(moduleId)}): ${replacement.match}\n`, err);
 
+                    if (IS_COMPANION_TEST)
+                        reporterData.failedPatches.erroredPatch.push({
+                            ...patch,
+                            oldModule: patchedCode,
+                            newModule: newPatchedCode,
+                            id: moduleId
+                        });
+
                     if (IS_DEV) {
                         diffErroredPatch(newPatchedCode, patchedCode, patchedCode.match(replacement.match)!);
                     }
@@ -614,6 +639,11 @@ function patchFactory(moduleId: PropertyKey, originalFactory: AnyModuleFactory):
 
                 if (patch.group) {
                     logger.warn(`Undoing patch group ${patch.find} by ${patch.plugin} because replacement ${replacement.match} errored`);
+                    if (IS_COMPANION_TEST)
+                        reporterData.failedPatches.undoingPatchGroup.push({
+                            ...patch,
+                            id: moduleId
+                        });
                     shouldRestorePrevious = true;
                     break;
                 }

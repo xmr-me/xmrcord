@@ -25,20 +25,34 @@ import { Readable } from "stream";
 import { finished } from "stream/promises";
 import { fileURLToPath } from "url";
 
-const BASE_URL = "https://github.com/Vencord/Installer/releases/latest/download/";
+const BASE_URL = "https://github.com/Equicord/Equilotl/releases/latest/download/";
 
 const BASE_DIR = join(dirname(fileURLToPath(import.meta.url)), "..");
 const FILE_DIR = join(BASE_DIR, "dist", "Installer");
 const ETAG_FILE = join(FILE_DIR, "etag.txt");
 
+function byArch(files) {
+    return files[process.arch] ?? files.default;
+}
+
 function getFilename() {
     switch (process.platform) {
         case "win32":
-            return "VencordInstallerCli.exe";
+            return byArch({
+                arm64: "EquilotlCli-arm64.exe",
+                default: "EquilotlCli.exe"
+            });
         case "darwin":
-            return "VencordInstallerCli-darwin";
+            return byArch({
+                x64: "EquilotlCli-x64",
+                arm64: "EquilotlCli-arm64",
+                default: "EquilotlCli-universal"
+            });
         case "linux":
-            return "VencordInstallerCli-linux";
+            return byArch({
+                arm64: "EquilotlCli-linux-arm64",
+                default: "EquilotlCli-Linux"
+            });
         default:
             throw new Error("Unsupported platform: " + process.platform);
     }
@@ -51,14 +65,13 @@ async function ensureBinary() {
     mkdirSync(FILE_DIR, { recursive: true });
 
     const outputFile = join(FILE_DIR, filename);
-
     const etag = existsSync(outputFile) && existsSync(ETAG_FILE)
         ? readFileSync(ETAG_FILE, "utf-8")
         : null;
 
     const res = await fetch(BASE_URL + filename, {
         headers: {
-            "User-Agent": "Vencord (https://github.com/Vendicated/Vencord)",
+            "User-Agent": "Equicord (https://github.com/Equicord/Equicord)",
             "If-None-Match": etag
         }
     });
@@ -97,8 +110,9 @@ try {
         stdio: "inherit",
         env: {
             ...process.env,
-            VENCORD_USER_DATA_DIR: BASE_DIR,
-            VENCORD_DEV_INSTALL: "1"
+            EQUICORD_USER_DATA_DIR: BASE_DIR,
+            EQUICORD_DIRECTORY: join(BASE_DIR, "dist/desktop"),
+            EQUICORD_DEV_INSTALL: "1"
         }
     });
 } catch {

@@ -73,7 +73,7 @@ export const _handleCommand = function (cmd: VencordCommand, args: CommandArgume
         sendBotMessage(ctx.channel.id, {
             content: `${msg}:\n${makeCodeblock(reason)}`,
             author: {
-                username: "Vencord"
+                username: "Equicord"
             }
         });
     };
@@ -85,7 +85,6 @@ export const _handleCommand = function (cmd: VencordCommand, args: CommandArgume
         return handleError(err);
     }
 } as never;
-
 
 /**
  * Prepare a Command Option for Discord by filling missing fields

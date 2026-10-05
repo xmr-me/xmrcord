@@ -22,6 +22,7 @@ const logger = new Logger("ServerFaker");
 const settings = definePluginSettings({
     guilds: {
         type: OptionType.CUSTOM,
+        description: "Configurações por servidor (gerenciadas pelo modal do ServerFaker).",
         default: {} as Record<string, GuildFakeConfig>,
         // Fires when the whole map is reassigned (which is what the modal does on every edit).
         onChange: () => refresh()

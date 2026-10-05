@@ -16,9 +16,18 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-import { migratePluginSettings } from "@api/Settings";
+import { definePluginSettings, migratePluginSettings } from "@api/Settings";
 import { Devs } from "@utils/constants";
-import definePlugin from "@utils/types";
+import definePlugin, { OptionType } from "@utils/types";
+
+const settings = definePluginSettings({
+    hideArrow: {
+        type: OptionType.BOOLEAN,
+        default: false,
+        description: "Hide Arrow",
+        restartNeeded: true
+    },
+});
 
 migratePluginSettings("AlwaysExpandRoles", "ShowAllRoles");
 export default definePlugin({
@@ -26,6 +35,8 @@ export default definePlugin({
     description: "Always expands the role list in profile popouts",
     tags: ["Appearance", "Roles"],
     authors: [Devs.surgedevs],
+    isModified: true,
+    settings,
     patches: [
         {
             find: "hasDeveloperContextMenu:",
@@ -39,8 +50,13 @@ export default definePlugin({
                     // which makes the collapse button never show up and calculation never occur
                     match: /(?<=useLayoutEffect\(\(\)=>\{if\()\i/,
                     replace: "false"
+                },
+                {
+                    match: /return \i\.length<\i\.length/,
+                    replace: "return false",
+                    predicate: () => settings.store.hideArrow
                 }
             ]
         }
-    ]
+    ],
 });

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-import { filters, mapMangledModuleLazy } from "@webpack";
+import { filters, findComponentByCodeLazy, mapMangledModuleLazy } from "@webpack";
 import { closeAllModals, closeModal, openMediaModal, openModal, openModalLazy } from "@webpack/common";
 
 import { LazyComponent } from "./react";
@@ -48,6 +48,7 @@ export const ModalContent = LazyComponent(() => (Modals as any).ModalContent) as
 export const ModalFooter = LazyComponent(() => (Modals as any).ModalFooter) as never;
 /** @deprecated Migrate to new Modals */
 export const ModalCloseButton = LazyComponent(() => (Modals as any).ModalCloseButton) as never;
+export const CloseButton = findComponentByCodeLazy("CLOSE_BUTTON_LABEL");
 
 /** @deprecated Migrate to new Modals */
 export const ModalAPI = {

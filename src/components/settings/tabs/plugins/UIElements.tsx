@@ -21,7 +21,6 @@ import { IconComponent } from "@utils/types";
 import { RenderModalProps } from "@vencord/discord-types";
 import { Clickable, Modal, openModal } from "@webpack/common";
 
-
 const cl = classNameFactory("vc-plugin-ui-elements-");
 
 export function UIElementsButton() {

@@ -22,10 +22,10 @@ import "./settings";
 
 import { debounce } from "@shared/debounce";
 import { IpcEvents } from "@shared/IpcEvents";
-import { BrowserWindow, ipcMain, nativeTheme, shell, systemPreferences } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, nativeTheme, shell, systemPreferences } from "electron";
 import monacoHtml from "file://monacoWin.html?minify&base64";
 import { FSWatcher, mkdirSync, readFileSync, watch, writeFileSync } from "fs";
-import { open, readdir, readFile } from "fs/promises";
+import { open, readdir, readFile, unlink } from "fs/promises";
 import { release } from "os";
 import { join } from "path";
 
@@ -35,7 +35,7 @@ import { ALLOWED_PROTOCOLS, QUICK_CSS_PATH, SETTINGS_DIR, THEMES_DIR } from "./u
 import { ensureSafePath } from "./utils/ensureSafePath";
 import { makeLinksOpenExternally } from "./utils/externalLinks";
 
-const RENDERER_CSS_PATH = join(__dirname, IS_VESKTOP ? "vencordDesktopRenderer.css" : "renderer.css");
+const RENDERER_CSS_PATH = join(__dirname, "renderer.css");
 
 mkdirSync(THEMES_DIR, { recursive: true });
 
@@ -84,7 +84,6 @@ ipcMain.handle(IpcEvents.OPEN_EXTERNAL, (_, url) => {
         .catch(err => console.error("[Vencord] Failed to open external link", url, err));
 });
 
-
 ipcMain.handle(IpcEvents.GET_QUICK_CSS, () => readCss());
 ipcMain.handle(IpcEvents.SET_QUICK_CSS, (_, css) =>
     writeFileSync(QUICK_CSS_PATH, css)
@@ -92,6 +91,11 @@ ipcMain.handle(IpcEvents.SET_QUICK_CSS, (_, css) =>
 
 ipcMain.handle(IpcEvents.GET_THEMES_LIST, () => listThemes());
 ipcMain.handle(IpcEvents.GET_THEME_DATA, (_, fileName) => getThemeData(fileName));
+ipcMain.handle(IpcEvents.DELETE_THEME, (_, fileName) => {
+    const safePath = ensureSafePath(THEMES_DIR, fileName);
+    if (!safePath) return Promise.reject(`Unsafe path ${fileName}`);
+    return unlink(safePath);
+});
 ipcMain.handle(IpcEvents.GET_THEME_SYSTEM_VALUES, () => {
     let accentColor = systemPreferences.getAccentColor?.() ?? "";
 
@@ -146,30 +150,50 @@ ipcMain.on(IpcEvents.GET_MONACO_THEME, e => {
     e.returnValue = nativeTheme.shouldUseDarkColors ? "vs-dark" : "vs-light";
 });
 
+let monacoWin: BrowserWindow | null = null;
+
 ipcMain.handle(IpcEvents.OPEN_MONACO_EDITOR, async () => {
-    const title = "Vencord QuickCSS Editor";
-    const existingWindow = BrowserWindow.getAllWindows().find(w => w.title === title);
-    if (existingWindow && !existingWindow.isDestroyed()) {
-        existingWindow.focus();
+    if (monacoWin && !monacoWin.isDestroyed()) {
+        monacoWin.show();
+        monacoWin.focus();
         return;
     }
 
-    const win = new BrowserWindow({
-        title,
+    monacoWin = new BrowserWindow({
+        title: "Equicord QuickCSS Editor",
         autoHideMenuBar: true,
         darkTheme: true,
         backgroundColor: nativeTheme.shouldUseDarkColors ? "#1e1e1e" : "white",
         webPreferences: {
-            preload: join(__dirname, IS_DISCORD_DESKTOP ? "preload.js" : "vencordDesktopPreload.js"),
+            preload: join(__dirname, "preload.js"),
             contextIsolation: true,
             nodeIntegration: false,
             sandbox: false
         }
     });
 
-    makeLinksOpenExternally(win);
+    monacoWin.once("closed", () => { monacoWin = null; });
 
-    await win.loadURL(`data:text/html;base64,${monacoHtml}`);
+    makeLinksOpenExternally(monacoWin);
+
+    await monacoWin.loadURL(`data:text/html;base64,${monacoHtml}`);
+});
+
+app.on("before-quit", async event => {
+    if (monacoWin && !monacoWin.isDestroyed() && !monacoWin.isVisible()) {
+        const result = await dialog.showMessageBox({
+            type: "question",
+            buttons: ["Cancel", "Close Anyway"],
+            defaultId: 0,
+            title: "QuickCSS Editor Open",
+            message: "QuickCSS editor is still open in the background.",
+            detail: "Do you want to close Discord anyway? This will also close the QuickCSS editor."
+        });
+
+        if (result.response === 1) {
+            app.exit();
+        }
+    }
 });
 
 ipcMain.handle(IpcEvents.GET_RENDERER_CSS, () => readFile(RENDERER_CSS_PATH, "utf-8"));

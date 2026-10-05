@@ -169,23 +169,23 @@ export default definePlugin({
     description: "Adds an indicator if someone is typing on a channel.",
     tags: ["Notifications", "Appearance", "Servers"],
     authors: [Devs.Nuckyz, Devs.fawn, Devs.Sqaaakoi],
+    isModified: true,
     settings,
 
     patches: [
-        // Normal channel
         {
+            // Normal channel.
             find: "UNREAD_IMPORTANT:",
             replacement: {
                 match: /\.Children\.count.+?:null(?<=,channel:(\i).+?)/,
                 replace: "$&,$self.TypingIndicator($1.id,$1.getGuildId())"
             }
         },
-        // Theads
         {
-            // This is the thread "spine" that shows in the left
+            // Thread "spine" that shows in the left.
             find: "M0 15H2c0 1.6569",
             replacement: {
-                match: /mentionsCount:\i.+?null(?<=channel:(\i).+?)/,
+                match: /\(\i,\{thread:(\i),countInVoice:.{0,200}?\]\}\)(?=\])/,
                 replace: "$&,$self.TypingIndicator($1.id,$1.getGuildId())"
             }
         }

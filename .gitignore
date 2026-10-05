@@ -1,8 +1,13 @@
 dist
 node_modules
+.VSCodeCounter
+.vars
+.secrets
+.input
 
 *.exe
 vencord_installer
+equicord_installer
 
 .idea
 .DS_Store
@@ -19,7 +24,20 @@ lerna-debug.log*
 .pnpm-debug.log*
 *.tsbuildinfo
 
-# Xmrcord: userplugins ARE tracked here (they are the point of this fork).
+.modules/
+# Xmrcord: userplugins ARE tracked in this fork.
 
 ExtensionCache/
 /settings
+
+# vencord companion module cache
+.modules
+
+# wakatime related stuff
+.wakatime-project
+
+# discord modules cache
+misc/bundle
+
+# intl scripts
+misc/scripts

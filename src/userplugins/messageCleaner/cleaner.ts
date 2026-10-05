@@ -405,7 +405,7 @@ export function startDelete() {
         update({ phase: token.cancelled ? "cancelled" : "done", rateLimitWait: 0 });
         showToast(
             `CL ${token.cancelled ? "cancelado" : "concluído"}: ${state.deleted} mensagens apagadas em ${state.label}`,
-            token.cancelled ? Toasts.Type.MESSAGE : Toasts.Type.SUCCESS
+            token.cancelled ? (Toasts as any).Type.MESSAGE : (Toasts as any).Type.SUCCESS
         );
     }, fail);
 }

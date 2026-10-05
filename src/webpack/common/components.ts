@@ -80,6 +80,11 @@ export function setRoleMemberPopout(component: t.RoleMemberPopout) {
     RoleMemberPopout = component;
 }
 
+export let NewCustomizationSection: t.ComponentSection = () => null;
+export function setNewCustomizationSection(component: t.ComponentSection) {
+    NewCustomizationSection = component;
+}
+
 export let createScroller: ((scrollbarClassName: string, fadeClassName: string, customThemeClassName: string) => t.ScrollerThin) | undefined;
 export function setCreateScroller(cs: NonNullable<typeof createScroller>) {
     createScroller = cs;

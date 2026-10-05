@@ -28,16 +28,17 @@ import definePlugin from "@utils/types";
 import { Message } from "@vencord/discord-types";
 import { ChannelStore } from "@webpack/common";
 
-const KEY = "HideAttachments_HiddenIds";
+const KEY = "HideMedia_HiddenIds";
 
 let hiddenMessages = new Set<string>();
 
 async function getHiddenMessages() {
-    hiddenMessages = await get(KEY) ?? new Set();
+    const stored = await get(KEY);
+    hiddenMessages = new Set(stored ?? []);
     return hiddenMessages;
 }
 
-const saveHiddenMessages = (ids: Set<string>) => set(KEY, ids);
+const saveHiddenMessages = (ids: Set<string>) => set(KEY, [...ids]);
 
 migratePluginSettings("HideMedia", "HideAttachments");
 
@@ -57,7 +58,7 @@ export default definePlugin({
     description: "Hide attachments and embeds for individual messages via hover button",
     tags: ["Chat", "Appearance"],
     authors: [Devs.Ven],
-    dependencies: ["MessageUpdaterAPI"],
+    dependencies: ["MessageUpdaterAPI", "MessageAccessoriesAPI", "MessagePopoverAPI"],
 
     patches: [{
         find: "this.renderAttachments(",

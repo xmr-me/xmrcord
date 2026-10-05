@@ -16,17 +16,23 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-import { ProfileBadge } from "@api/Badges";
-import { ChatBarButtonData } from "@api/ChatButtons";
-import { NavContextMenuPatchCallback } from "@api/ContextMenu";
-import { MemberListDecoratorFactory } from "@api/MemberListDecorators";
-import { MessageAccessoryFactory } from "@api/MessageAccessories";
-import { MessageDecorationFactory } from "@api/MessageDecorations";
-import { MessageClickListener, MessageEditListener, MessageSendListener } from "@api/MessageEvents";
-import { MessagePopoverButtonData } from "@api/MessagePopover";
-import { Command, FluxEvents } from "@vencord/discord-types";
-import { ReactNode } from "react";
-import { LiteralUnion } from "type-fest";
+import { AudioProcessor } from "@api/AudioPlayer";
+import type { ProfileBadge } from "@api/Badges";
+import type { ChatBarButtonData, ChatBarButtonWrapperData } from "@api/ChatButtons";
+import type { NavContextMenuPatchCallback } from "@api/ContextMenu";
+import { HeaderBarButtonData } from "@api/HeaderBar";
+import type { MemberListDecoratorFactory } from "@api/MemberListDecorators";
+import type { MessageAccessoryFactory } from "@api/MessageAccessories";
+import type { MessageDecorationFactory } from "@api/MessageDecorations";
+import type { MessageClickListener, MessageEditListener, MessageSendListener } from "@api/MessageEvents";
+import type { MessagePopoverButtonData } from "@api/MessagePopover";
+import type { NicknameIconFactory } from "@api/NicknameIcons";
+import { ProfileCollectionData } from "@api/ProfileCollections";
+import { ProfileSectionData } from "@api/ProfileSections";
+import type { UserAreaButtonData } from "@api/UserArea";
+import type { Command, FluxEvents } from "@vencord/discord-types";
+import type { ReactNode } from "react";
+import type { LiteralUnion } from "type-fest";
 
 // exists to export default definePlugin({...})
 export default function definePlugin<P extends PluginDef>(p: P & Record<PropertyKey, any>) {
@@ -206,6 +212,7 @@ export interface PluginDef {
     managedStyle?: string;
 
     userProfileBadge?: ProfileBadge;
+    userProfileBadges?: ProfileBadge[];
 
     messagePopoverButton?: MessagePopoverButtonData;
     chatBarButton?: ChatBarButtonData;
@@ -218,6 +225,22 @@ export interface PluginDef {
     renderMessageDecoration?: MessageDecorationFactory;
 
     renderMemberListDecorator?: MemberListDecoratorFactory;
+
+    /*
+    * Custom apis added by Equicord and were placed here for quicker identification rather then mixing them in
+    */
+    renderNicknameIcon?: NicknameIconFactory;
+    headerBarButton?: HeaderBarButtonData;
+    audioProcessor?: AudioProcessor;
+    userAreaButton?: UserAreaButtonData;
+    renderProfileCollection?: ProfileCollectionData;
+    chatBarButtonWrapper?: ChatBarButtonWrapperData;
+    renderProfileSection?: ProfileSectionData;
+
+    /**
+     * A Vencord plugin that is modified for extra features in Equicord
+     */
+    isModified?: boolean;
 }
 
 export const enum StartAt {
@@ -331,7 +354,7 @@ export interface PluginSettingSelectOption {
     default?: boolean;
 }
 
-export interface PluginSettingCustomDef {
+export interface PluginSettingCustomDef extends PluginSettingDefCommon {
     type: OptionType.CUSTOM;
     default?: any;
     onChange?: PluginSettingDefCommon["onChange"];

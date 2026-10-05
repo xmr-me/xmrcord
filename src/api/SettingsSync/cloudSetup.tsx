@@ -8,40 +8,12 @@ import * as DataStore from "@api/DataStore";
 import { showNotification } from "@api/Notifications";
 import { Settings } from "@api/Settings";
 import { Logger } from "@utils/Logger";
-import { relaunch } from "@utils/native";
-import { ConfirmModal,OAuth2AuthorizeModal, openModal, UserStore } from "@webpack/common";
+import { OAuth2AuthorizeModal, openModal, UserStore } from "@webpack/common";
 
 export const logger = new Logger("SettingsSync:CloudSetup", "#39b7e0");
 
 export const getCloudUrl = () => new URL(Settings.cloud.url);
 const getCloudUrlOrigin = () => getCloudUrl().origin;
-
-export async function checkCloudUrlCsp() {
-    if (IS_WEB) return true;
-
-    const { host } = getCloudUrl();
-    if (host === "api.vencord.dev") return true;
-
-    if (await VencordNative.csp.isDomainAllowed(Settings.cloud.url, ["connect-src"])) {
-        return true;
-    }
-
-    const res = await VencordNative.csp.requestAddOverride(Settings.cloud.url, ["connect-src"], "Cloud Sync");
-    if (res === "ok") {
-        openModal(props => (
-            <ConfirmModal
-                {...props}
-                title="Cloud Integration enabled"
-                subtitle={`${host} has been added to the whitelist. Please restart the app for the changes to take effect.`}
-                confirmText="Restart now"
-                cancelText="Later!"
-                variant="primary"
-                onConfirm={relaunch}
-            />
-        ));
-    }
-    return false;
-}
 
 const getUserId = () => {
     const id = UserStore.getCurrentUser()?.id;
@@ -93,8 +65,6 @@ export async function authorizeCloud() {
         return;
     }
 
-    if (!await checkCloudUrlCsp()) return;
-
     try {
         const oauthConfiguration = await fetch(new URL("/v1/oauth/settings", getCloudUrl()));
         var { clientId, redirectUri } = await oauthConfiguration.json();
@@ -125,19 +95,22 @@ export async function authorizeCloud() {
                 const res = await fetch(location, {
                     headers: { Accept: "application/json" }
                 });
-                const { secret } = await res.json();
-                if (secret) {
-                    logger.info("Authorized with secret");
-                    await setAuthorization(secret);
+                const data = await res.json();
+                if (data.secret) {
+                    logger.info("Authorized with cloud");
+                    await setAuthorization(data.secret);
                     showNotification({
                         title: "Cloud Integration",
                         body: "Cloud integrations enabled!"
                     });
                     Settings.cloud.authenticated = true;
                 } else {
+                    logger.error("OAuth callback returned no secret", data);
                     showNotification({
                         title: "Cloud Integration",
-                        body: "Setup failed (no secret returned?)."
+                        body: data.error
+                            ? `Setup failed: ${data.error}`
+                            : "Setup failed (no secret returned)."
                     });
                     Settings.cloud.authenticated = false;
                 }

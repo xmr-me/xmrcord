@@ -79,7 +79,6 @@ export const settings = definePluginSettings({
     },
 });
 
-
 const imageContextMenuPatch: NavContextMenuPatchCallback = (children, props) => {
     // Discord re-uses the image context menu for links to for the copy and open buttons
     if ("href" in props) return;
@@ -235,11 +234,12 @@ export default definePlugin({
     renderMagnifier(instance) {
         try {
             if (instance.props.id === ELEMENT_ID) {
-                if (!this.currentMagnifierElement) {
-                    this.currentMagnifierElement = <Magnifier size={settings.store.size} zoom={settings.store.zoom} instance={instance} />;
+                if (!this.root) {
                     this.root = createRoot(this.element!);
-                    this.root.render(this.currentMagnifierElement);
                 }
+
+                this.currentMagnifierElement = <Magnifier size={settings.store.size} zoom={settings.store.zoom} instance={instance} />;
+                this.root.render(this.currentMagnifierElement);
             }
         } catch (error) {
             new Logger("ImageZoom").error("Failed to render magnifier:", error);
@@ -247,7 +247,6 @@ export default definePlugin({
     },
 
     updateMagnifier(instance) {
-        this.unMountMagnifier();
         this.renderMagnifier(instance);
     },
 

@@ -82,7 +82,7 @@ export default definePlugin({
                 replace: "$1.fetchRelationships(),$self.fetchImplicitRelationships()"
             },
         },
-        // Modify sort -- thanks megu for the patch (from sortFriendRequests)
+        // Modify sort -- thanks megu for the patch (from sortFriends)
         {
             find: "getRelationshipCounts(){",
             replacement: {
@@ -163,7 +163,7 @@ export default definePlugin({
             FluxDispatcher.dispatch({
                 type: "GUILD_MEMBERS_REQUEST",
                 guildIds: allGuildIds,
-                userIds: toRequest.slice(i, i + 100),
+                userIds: toRequest.slice(i, i + 100).map(e => e.otherUserId),
                 presences: true,
                 nonce: sentNonce,
             });

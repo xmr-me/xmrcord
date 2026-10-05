@@ -18,23 +18,36 @@
 
 import { useSettings } from "@api/Settings";
 import { authorizeCloud, deauthorizeCloud } from "@api/SettingsSync/cloudSetup";
-import { deleteCloudSettings, eraseAllCloudData, getCloudSettings, getCloudSyncDirection, putCloudSettings, setCloudSyncDirection } from "@api/SettingsSync/cloudSync";
-import { BaseText } from "@components/BaseText";
-import { Button, ButtonProps } from "@components/Button";
+import { deleteCloudSettings, eraseAllCloudData, getCloudSettings, putCloudSettings } from "@api/SettingsSync/cloudSync";
+import { Button } from "@components/Button";
 import { CheckedTextInput } from "@components/CheckedTextInput";
 import { Divider } from "@components/Divider";
 import { Flex } from "@components/Flex";
 import { FormSwitch } from "@components/FormSwitch";
-import { Grid } from "@components/Grid";
 import { Heading } from "@components/Heading";
-import { CloudDownloadIcon, CloudUploadIcon, DeleteIcon, RestartIcon } from "@components/Icons";
+import { CloudDownloadIcon, CloudUploadIcon, SkullIcon } from "@components/Icons";
 import { Link } from "@components/Link";
+import { Notice } from "@components/Notice";
 import { Paragraph } from "@components/Paragraph";
 import { SettingsTab, wrapTab } from "@components/settings/tabs/BaseTab";
+import { localStorage } from "@utils/localStorage";
 import { Margins } from "@utils/margins";
-import { classes } from "@utils/misc";
-import { IconComponent } from "@utils/types";
-import { ConfirmModal,openModal, Select, Tooltip, useState } from "@webpack/common";
+import { useForceUpdater } from "@utils/react";
+import { findComponentByCodeLazy } from "@webpack";
+import { Alerts, SearchableSelect, Select, useState } from "@webpack/common";
+
+const ICON_STYLE: React.CSSProperties = { width: 20, height: 20, borderRadius: 4, verticalAlign: "middle" };
+
+function EquicordIcon() {
+    return <img src="https://equicord.org/assets/favicon.png" alt="Equicord" style={ICON_STYLE} />;
+}
+
+function VencordIcon() {
+    return <img src="https://equicord.org/assets/icons/vencord/icon-light.png" alt="Vencord" style={ICON_STYLE} />;
+}
+
+const RefreshIcon = findComponentByCodeLazy("M4 12a8 8 0 0 1 14.93-4H15");
+const TrashIcon = findComponentByCodeLazy("2.81h8.36a3");
 
 function validateUrl(url: string) {
     try {
@@ -45,217 +58,208 @@ function validateUrl(url: string) {
     }
 }
 
-const SectionHeading = ({ text }: { text: string; }) => (
-    <BaseText
-        tag="h5"
-        size="lg"
-        weight="semibold"
-        className={Margins.bottom16}
-    >
-        {text}
-    </BaseText>
-);
+const cloudBackendOptions = [
+    { label: "Equicord Cloud", value: "https://cloud.equicord.org/" },
+    { label: "Vencord Cloud", value: "https://api.vencord.dev/" }
+];
 
-function ButtonWithIcon({ children, Icon, className, ...buttonProps }: ButtonProps & { Icon: IconComponent; }) {
+const syncDirectionOptions = [
+    { label: "Two-way sync (changes go both directions)", value: "both" },
+    { label: "This device is the source (upload only)", value: "push" },
+    { label: "The cloud is the source (download only)", value: "pull" },
+    { label: "Do not sync automatically (manual sync via buttons below only)", value: "manual" }
+];
+
+function CloudTab() {
+    const settings = useSettings(["cloud.authenticated", "cloud.url", "cloud.settingsSync"]);
+    const [inputKey, setInputKey] = useState(0);
+    const forceUpdate = useForceUpdater();
+
+    const { cloud } = settings;
+    const isAuthenticated = cloud.authenticated;
+    const syncEnabled = isAuthenticated && cloud.settingsSync;
+
+    async function changeUrl(url: string) {
+        cloud.url = url;
+        cloud.authenticated = false;
+
+        await deauthorizeCloud();
+        await authorizeCloud();
+
+        setInputKey(prev => prev + 1);
+    }
+
     return (
-        <Button {...buttonProps} className={classes("vc-cloud-icon-with-button", className)}>
-            <Icon className={"vc-cloud-button-icon"} />
-            {children}
-        </Button>
-    );
-}
-
-function CloudSetupSection() {
-    const { cloud } = useSettings(["cloud.authenticated", "cloud.url"]);
-
-    return (
-        <section>
-            <SectionHeading text="Cloud Integrations" />
-
-            <Paragraph size="md" className={Margins.bottom20}>
-                Vencord comes with a cloud integration that adds goodies like settings sync across devices.
-                It <Link href="https://vencord.dev/cloud/privacy">respects your privacy</Link>, and
-                the <Link href="https://github.com/Vencord/Backend">source code</Link> is AGPL 3.0 licensed so you
-                can host it yourself.
+        <SettingsTab>
+            <Heading className={Margins.top16}>Cloud Integration</Heading>
+            <Paragraph className={Margins.bottom16}>
+                Equicord's cloud integration allows you to sync your settings across multiple devices and Discord installations. Your data is securely stored and can be easily restored at any time.
             </Paragraph>
+
+            <Notice.Info className={Margins.bottom16}>
+                We use our own <Link href="https://github.com/Equicord/Equicloud">Equicloud backend</Link> with enhanced features.
+                View our <Link href="https://equicord.org/cloud/policy">privacy policy</Link> to see what we store and how we use your data.
+                Equicloud is BSD 3.0 licensed, so you can self-host if preferred.
+            </Notice.Info>
+
             <FormSwitch
-                key="backend"
-                title="Enable Cloud Integrations"
-                description="This will request authorization if you have not yet set up cloud integrations."
-                value={cloud.authenticated}
+                title="Enable Cloud Integration"
+                description="Connect to the cloud backend for settings synchronization. This will request authorization if you haven't set up cloud integration yet."
+                value={isAuthenticated}
                 onChange={v => {
                     if (v)
                         authorizeCloud();
                     else
                         cloud.authenticated = v;
                 }}
+                hideBorder
             />
-            <Heading tag="h5" className={Margins.top16}>Backend URL</Heading>
-            <Paragraph className={Margins.bottom8}>
-                Which backend to use when using cloud integrations.
+
+            <Divider className={Margins.top20} />
+
+            <Heading className={Margins.top20}>Cloud Backend</Heading>
+            <Paragraph className={Margins.bottom16}>
+                Choose which cloud backend to use for storing your settings. You can switch between Equicord's and Vencord's cloud services, or use a self-hosted instance.
             </Paragraph>
-            <CheckedTextInput
-                key="backendUrl"
-                initialValue={cloud.url}
-                onChange={async v => {
-                    cloud.url = v;
-                    cloud.authenticated = false;
-                    deauthorizeCloud();
-                }}
-                validate={validateUrl}
-            />
 
-            <Grid columns={1} gap="1em" className={Margins.top8}>
-                <ButtonWithIcon
-                    variant="primary"
-                    disabled={!cloud.authenticated}
-                    onClick={async () => {
-                        await deauthorizeCloud();
-                        cloud.authenticated = false;
-                        await authorizeCloud();
-                    }}
-                    Icon={RestartIcon}
-                >
-                    Reauthorise
-                </ButtonWithIcon>
-            </Grid>
-        </section>
-    );
-}
-
-function SettingsSyncSection() {
-    const { cloud } = useSettings(["cloud.authenticated", "cloud.settingsSync"]);
-    const [syncDirection, setSyncDirection] = useState(getCloudSyncDirection);
-    const sectionEnabled = cloud.authenticated && cloud.settingsSync;
-
-    return (
-        <section>
-            <SectionHeading text="Settings Sync" />
-            <Flex flexDirection="column" gap="1em">
-                <FormSwitch
-                    key="cloud-sync"
-                    title="Enable Settings Sync"
-                    description="Save your Vencord settings to the cloud so you can easily keep them the same on all your devices"
-                    value={cloud.settingsSync}
-                    onChange={v => { cloud.settingsSync = v; }}
-                    disabled={!cloud.authenticated}
-                    hideBorder
+            <div className={Margins.bottom8}>
+                <SearchableSelect
+                    options={cloudBackendOptions}
+                    value={cloudBackendOptions.find(o => o.value === cloud.url)?.value}
+                    onChange={v => changeUrl(v)}
+                    closeOnSelect={true}
+                    renderOptionPrefix={o => o?.value?.includes("equicord") ? <EquicordIcon /> : <VencordIcon />}
                 />
+            </div>
 
-                <div>
-                    <Heading tag="h5">
-                        Sync Rules for This Device
-                    </Heading>
-                    <Paragraph className={Margins.bottom8}>
-                        This setting controls how settings move between <strong>this device</strong> and the cloud.
-                        You can let changes flow both ways, or choose one place to be the main source of truth.
-                    </Paragraph>
-                    <Select
-                        options={[
-                            {
-                                label: "Two-way sync (changes go both directions)",
-                                value: "both",
-                                default: true,
-                            },
-                            {
-                                label: "This device is the source (upload only)",
-                                value: "push",
-                            },
-                            {
-                                label: "The cloud is the source (download only)",
-                                value: "pull",
-                            },
-                            {
-                                label: "Do not sync automatically (manual sync via buttons below only)",
-                                value: "manual",
-                            }
-                        ]}
-                        isSelected={v => v === syncDirection}
-                        serialize={v => String(v)}
-                        select={v => {
-                            setCloudSyncDirection(v);
-                            setSyncDirection(v);
+            <Flex gap="8px" alignItems="center">
+                <div style={{ flex: 1 }}>
+                    <CheckedTextInput
+                        key={`backendUrl-${inputKey}`}
+                        initialValue={cloud.url}
+                        onChange={async v => {
+                            cloud.url = v;
+                            cloud.authenticated = false;
+                            await deauthorizeCloud();
                         }}
-                        closeOnSelect={true}
+                        validate={validateUrl}
                     />
                 </div>
-
-                <Grid columns={2} gap="1em" className={Margins.top20}>
-                    <ButtonWithIcon
-                        variant="positive"
-                        disabled={!sectionEnabled}
-                        onClick={() => putCloudSettings(true)}
-                        Icon={CloudUploadIcon}
-                    >
-                        Upload Settings
-                    </ButtonWithIcon>
-                    <Tooltip text="This will replace your current settings with the ones saved in the cloud. Be careful!">
-                        {({ onMouseLeave, onMouseEnter }) => (
-                            <ButtonWithIcon
-                                variant="dangerPrimary"
-                                onMouseLeave={onMouseLeave}
-                                onMouseEnter={onMouseEnter}
-                                disabled={!sectionEnabled}
-                                onClick={() => getCloudSettings(true, true)}
-                                Icon={CloudDownloadIcon}
-                            >
-                                Download Settings
-                            </ButtonWithIcon>
-                        )}
-                    </Tooltip>
-                </Grid>
+                <Button
+                    disabled={!isAuthenticated}
+                    onClick={async () => {
+                        cloud.authenticated = false;
+                        await deauthorizeCloud();
+                        await authorizeCloud();
+                    }}
+                >
+                    <Flex gap="8px" alignItems="center">
+                        <RefreshIcon color="currentColor" />
+                        Reauthorize
+                    </Flex>
+                </Button>
             </Flex>
-        </section>
-    );
-}
 
-function ResetSection() {
-    const { authenticated, settingsSync } = useSettings(["cloud.authenticated", "cloud.settingsSync"]).cloud;
+            <Divider className={Margins.top20} />
 
-    return (
-        <section>
-            <SectionHeading text="Reset Cloud Data" />
+            <Heading className={Margins.top20}>Settings Sync</Heading>
+            <Paragraph className={Margins.bottom16}>
+                Synchronize your Equicord settings to the cloud. This makes it easy to keep your configuration consistent across multiple devices without manual import/export.
+            </Paragraph>
 
-            <Grid columns={2} gap="1em">
-                <ButtonWithIcon
+            <FormSwitch
+                title="Enable Settings Sync"
+                description="When enabled, your settings can be synced to and from the cloud. Use the actions below to manually sync."
+                value={cloud.settingsSync}
+                onChange={v => { cloud.settingsSync = v; }}
+                disabled={!isAuthenticated}
+                hideBorder
+            />
+
+            <Divider className={Margins.top20} />
+
+            <Heading className={Margins.top20}>Sync Rules for This Device</Heading>
+            <Paragraph className={Margins.bottom16}>
+                This setting controls how settings move between <strong>this device</strong> and the cloud. You can let changes flow both ways, or choose one place to be the main source of truth.
+            </Paragraph>
+
+            <Select
+                options={syncDirectionOptions}
+                isSelected={v => v === (localStorage.Vencord_cloudSyncDirection ?? "both")}
+                select={v => {
+                    localStorage.Vencord_cloudSyncDirection = v;
+                    forceUpdate();
+                }}
+                serialize={v => v}
+                isDisabled={!syncEnabled}
+            />
+
+            <Flex gap="8px" className={Margins.top16}>
+                <Button
+                    style={{ flex: 1 }}
+                    disabled={!syncEnabled}
+                    onClick={() => putCloudSettings(true)}
+                >
+                    <Flex gap="8px" alignItems="center">
+                        <CloudUploadIcon />
+                        Sync to Cloud
+                    </Flex>
+                </Button>
+                <Button
+                    style={{ flex: 1 }}
+                    disabled={!syncEnabled}
+                    onClick={() => getCloudSettings(true, true)}
+                >
+                    <Flex gap="8px" alignItems="center">
+                        <CloudDownloadIcon />
+                        Sync from Cloud
+                    </Flex>
+                </Button>
+            </Flex>
+
+            {!isAuthenticated && (
+                <Notice.Warning className={Margins.top8}>
+                    Enable cloud integration above to use settings sync features.
+                </Notice.Warning>
+            )}
+
+            <Divider className={Margins.top20} />
+
+            <Heading className={Margins.top20}>Danger Zone</Heading>
+            <Paragraph className={Margins.bottom16}>
+                Permanently delete all your data from the cloud. This action cannot be undone and will remove all synced settings and any other data stored on the cloud backend.
+            </Paragraph>
+
+            <Flex gap="8px">
+                <Button
                     variant="dangerPrimary"
-                    disabled={!authenticated || !settingsSync}
+                    size="medium"
+                    disabled={!syncEnabled}
                     onClick={() => deleteCloudSettings()}
-                    Icon={DeleteIcon}
                 >
-                    Delete Settings from Cloud
-                </ButtonWithIcon>
-                <ButtonWithIcon
-                    variant="dangerPrimary"
-                    disabled={!authenticated}
-                    onClick={() => openModal(props => (
-                        <ConfirmModal
-                            {...props}
-                            title="Are you sure?"
-                            subtitle="Once your data is erased, we cannot recover it. There's no going back!"
-                            onConfirm={eraseAllCloudData}
-                            confirmText="Erase it!"
-                            cancelText="Nevermind"
-                        />
-                    ))}
-                    Icon={DeleteIcon}
+                    <Flex gap="8px" alignItems="center">
+                        <TrashIcon color="currentColor" />
+                        Delete Cloud Settings
+                    </Flex>
+                </Button>
+                <Button
+                    variant="dangerSecondary"
+                    size="medium"
+                    disabled={!isAuthenticated}
+                    onClick={() => Alerts.show({
+                        title: "Delete Cloud Account",
+                        body: "Are you sure you want to permanently delete your cloud account and all associated data? This action cannot be undone.",
+                        onConfirm: eraseAllCloudData,
+                        confirmText: "Delete Account",
+                        confirmColor: "vc-cloud-erase-data-danger-btn",
+                        cancelText: "Cancel"
+                    })}
                 >
-                    Delete your Cloud Account
-                </ButtonWithIcon>
-            </Grid>
-        </section>
-    );
-}
-
-function CloudTab() {
-    return (
-        <SettingsTab>
-            <Flex flexDirection="column" gap="1em">
-                <CloudSetupSection />
-                <Divider />
-                <SettingsSyncSection />
-                <Divider />
-                <ResetSection />
+                    <Flex gap="8px" alignItems="center">
+                        <SkullIcon />
+                        Delete Cloud Account
+                    </Flex>
+                </Button>
             </Flex>
         </SettingsTab>
     );

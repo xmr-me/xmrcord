@@ -101,7 +101,7 @@ export default definePlugin({
                             color: "#eed202",
                             title: "Discord has crashed!",
                             body: "Awn :( Discord has crashed two times rapidly, not attempting to recover.",
-                            noPersist: true
+                            noPersist: true,
                         });
                     } catch { }
 
@@ -116,7 +116,7 @@ export default definePlugin({
             try {
                 if (!hasCrashedOnce) {
                     hasCrashedOnce = true;
-                    maybePromptToUpdate("Uh oh, Discord has just crashed... but good news, there is a Vencord update available that might fix this issue! Would you like to update now?", true);
+                    maybePromptToUpdate("Uh oh, Discord has just crashed... but good news, there is a Equicord update available that might fix this issue! Would you like to update now?", true);
                 }
             } catch { }
 
@@ -136,7 +136,7 @@ export default definePlugin({
                 color: "#eed202",
                 title: "Discord has crashed!",
                 body: "Attempting to recover...",
-                noPersist: true
+                noPersist: true,
             });
         } catch { }
 

@@ -53,4 +53,3 @@ export function SliderSetting({ setting, pluginSettings, definedSettings, id, on
         </SettingsSection>
     );
 }
-

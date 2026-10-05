@@ -19,42 +19,64 @@
 import "./styles.css";
 
 import { NavContextMenuPatchCallback } from "@api/ContextMenu";
+import { definePluginSettings } from "@api/Settings";
 import { Card } from "@components/Card";
 import { Microphone } from "@components/Icons";
 import { Link } from "@components/Link";
 import { Paragraph } from "@components/Paragraph";
+import { lastState as silentMessageEnabled } from "@plugins/silentMessageToggle";
 import { Devs } from "@utils/constants";
 import { classNameFactory } from "@utils/css";
 import { Margins } from "@utils/margins";
 import { useAwaiter } from "@utils/react";
-import definePlugin from "@utils/types";
+import definePlugin, { OptionType } from "@utils/types";
 import { chooseFile } from "@utils/web";
-import { CloudUpload as TCloudUpload, RenderModalProps } from "@vencord/discord-types";
+import { RenderModalProps } from "@vencord/discord-types";
 import { CloudUploadPlatform } from "@vencord/discord-types/enums";
-import { findLazy } from "@webpack";
-import { Button, Constants, FluxDispatcher, Forms, lodash, Menu, MessageActions, Modal,openModal, PendingReplyStore, PermissionsBits, PermissionStore, RestAPI, SelectedChannelStore, showToast, SnowflakeUtils, Toasts, useEffect, useState } from "@webpack/common";
+import { Button, CloudUploader, Constants, FluxDispatcher, Forms, lodash, Menu, MessageActions, Modal, openModal, PendingReplyStore, PermissionsBits, PermissionStore, RestAPI, SelectedChannelStore, showToast, SnowflakeUtils, useEffect, useState } from "@webpack/common";
 import { ComponentType } from "react";
 
-import { VoiceRecorderDesktop } from "./DesktopRecorder";
-import { settings } from "./settings";
-import { VoicePreview } from "./VoicePreview";
-import { VoiceRecorderWeb } from "./WebRecorder";
+import { VoiceRecorderDesktop } from "./components/DesktopRecorder";
+import { VoiceMessageProps, VoicePreview } from "./components/VoicePreview";
+import { VoiceRecorderWeb } from "./components/WebRecorder";
 
-const CloudUpload: typeof TCloudUpload = findLazy(m => m.prototype?.trackUploadFinished);
+const VOICE_MESSAGE_FLAG = 1 << 13;
+const SILENT_MESSAGE_FLAG = 4096;
+const DEFAULT_WAVEFORM = "AAAAAAAAAAAA";
+const DEFAULT_DURATION = 1;
+const WAVEFORM_MIN_BINS = 32;
+const WAVEFORM_MAX_BINS = 256;
+const WAVEFORM_BINS_PER_SECOND = 10;
+const WAVEFORM_MAX_VALUE = 0xFF;
+
+const EMPTY_META: AudioMetadata = {
+    waveform: DEFAULT_WAVEFORM,
+    duration: DEFAULT_DURATION,
+};
 
 export const cl = classNameFactory("vc-vmsg-");
-export type VoiceRecorder = ComponentType<{
+
+export type VoiceRecorder = React.ComponentType<{
     setAudioBlob(blob: Blob): void;
     onRecordingChange?(recording: boolean): void;
 }>;
 
-export interface VoiceMessageProps {
-    src: string;
-    waveform: string;
-}
 export let VoiceMessage: ComponentType<VoiceMessageProps> = () => null;
 
 const VoiceRecorder = IS_DISCORD_DESKTOP ? VoiceRecorderDesktop : VoiceRecorderWeb;
+
+export const settings = definePluginSettings({
+    noiseSuppression: {
+        type: OptionType.BOOLEAN,
+        description: "Noise Suppression",
+        default: true,
+    },
+    echoCancellation: {
+        type: OptionType.BOOLEAN,
+        description: "Echo Cancellation",
+        default: true,
+    },
+});
 
 const ctxMenuPatch: NavContextMenuPatchCallback = (children, props) => {
     if (props.channel.guild_id && !(PermissionStore.can(PermissionsBits.SEND_VOICE_MESSAGES, props.channel) && PermissionStore.can(PermissionsBits.SEND_MESSAGES, props.channel))) return;
@@ -103,17 +125,45 @@ type AudioMetadata = {
     waveform: string,
     duration: number,
 };
-const EMPTY_META: AudioMetadata = {
-    waveform: "AAAAAAAAAAAA",
-    duration: 1,
-};
+
+function generateWaveform(audioBuffer: AudioBuffer): string {
+    const channelData = audioBuffer.getChannelData(0);
+    const binCount = lodash.clamp(
+        Math.floor(audioBuffer.duration * WAVEFORM_BINS_PER_SECOND),
+        Math.min(WAVEFORM_MIN_BINS, channelData.length),
+        WAVEFORM_MAX_BINS
+    );
+
+    const bins = new Uint8Array(binCount);
+    const samplesPerBin = Math.floor(channelData.length / binCount);
+
+    for (let binIdx = 0; binIdx < binCount; binIdx++) {
+        let sum = 0;
+        for (let sampleIdx = 0; sampleIdx < samplesPerBin; sampleIdx++) {
+            const offset = binIdx * samplesPerBin + sampleIdx;
+            sum += channelData[offset + sampleIdx] ** 2;
+        }
+        bins[binIdx] = Math.floor(Math.sqrt(sum / samplesPerBin) * WAVEFORM_MAX_VALUE);
+    }
+
+    const maxBin = Math.max(...bins);
+    if (maxBin) {
+        const easing = Math.min(1, 100 * (maxBin / WAVEFORM_MAX_VALUE) ** 3);
+        const ratio = 1 + (WAVEFORM_MAX_VALUE / maxBin - 1) * easing;
+        for (let i = 0; i < binCount; i++) {
+            bins[i] = Math.min(WAVEFORM_MAX_VALUE, Math.floor(bins[i] * ratio));
+        }
+    }
+
+    return window.btoa(String.fromCharCode(...bins));
+}
 
 function sendAudio(blob: Blob, meta: AudioMetadata) {
     const channelId = SelectedChannelStore.getChannelId();
     const reply = PendingReplyStore.getPendingReply(channelId);
     if (reply) FluxDispatcher.dispatch({ type: "DELETE_PENDING_REPLY", channelId });
 
-    const upload = new CloudUpload({
+    const upload = new CloudUploader({
         file: new File([blob], "voice-message.ogg", { type: "audio/ogg; codecs=opus" }),
         isThumbnail: false,
         platform: CloudUploadPlatform.WEB,
@@ -123,7 +173,7 @@ function sendAudio(blob: Blob, meta: AudioMetadata) {
         RestAPI.post({
             url: Constants.Endpoints.MESSAGES(channelId),
             body: {
-                flags: 1 << 13,
+                flags: VOICE_MESSAGE_FLAG | (silentMessageEnabled ? SILENT_MESSAGE_FLAG : 0),
                 channel_id: channelId,
                 content: "",
                 nonce: SnowflakeUtils.fromTimestamp(Date.now()),
@@ -140,7 +190,7 @@ function sendAudio(blob: Blob, meta: AudioMetadata) {
             }
         });
     });
-    upload.on("error", () => showToast("Failed to upload voice message", Toasts.Type.FAILURE));
+    upload.on("error", () => showToast("Failed to upload voice message", "failure"));
 
     upload.upload();
 }
@@ -148,8 +198,7 @@ function sendAudio(blob: Blob, meta: AudioMetadata) {
 function useObjectUrl() {
     const [url, setUrl] = useState<string>();
     const setWithFree = (blob: Blob) => {
-        if (url)
-            URL.revokeObjectURL(url);
+        if (url) URL.revokeObjectURL(url);
         setUrl(URL.createObjectURL(blob));
     };
 
@@ -161,6 +210,8 @@ function VoiceMessageModal({ modalProps }: { modalProps: RenderModalProps; }) {
     const [blob, setBlob] = useState<Blob>();
     const [blobUrl, setBlobUrl] = useObjectUrl();
 
+    const VoiceRecorder = IS_DISCORD_DESKTOP ? VoiceRecorderDesktop : VoiceRecorderWeb;
+
     useEffect(() => () => {
         if (blobUrl)
             URL.revokeObjectURL(blobUrl);
@@ -171,29 +222,9 @@ function VoiceMessageModal({ modalProps }: { modalProps: RenderModalProps; }) {
 
         const audioContext = new AudioContext();
         const audioBuffer = await audioContext.decodeAudioData(await blob.arrayBuffer());
-        const channelData = audioBuffer.getChannelData(0);
-
-        // average the samples into much lower resolution bins, maximum of 256 total bins
-        const bins = new Uint8Array(lodash.clamp(Math.floor(audioBuffer.duration * 10), Math.min(32, channelData.length), 256));
-        const samplesPerBin = Math.floor(channelData.length / bins.length);
-
-        // Get root mean square of each bin
-        for (let binIdx = 0; binIdx < bins.length; binIdx++) {
-            let squares = 0;
-            for (let sampleOffset = 0; sampleOffset < samplesPerBin; sampleOffset++) {
-                const sampleIdx = binIdx * samplesPerBin + sampleOffset;
-                squares += channelData[sampleIdx] ** 2;
-            }
-            bins[binIdx] = ~~(Math.sqrt(squares / samplesPerBin) * 0xFF);
-        }
-
-        // Normalize bins with easing
-        const maxBin = Math.max(...bins);
-        const ratio = 1 + (0xFF / maxBin - 1) * Math.min(1, 100 * (maxBin / 0xFF) ** 3);
-        for (let i = 0; i < bins.length; i++) bins[i] = Math.min(0xFF, ~~(bins[i] * ratio));
 
         return {
-            waveform: window.btoa(String.fromCharCode(...bins)),
+            waveform: generateWaveform(audioBuffer),
             duration: audioBuffer.duration,
         };
     }, {
@@ -201,10 +232,7 @@ function VoiceMessageModal({ modalProps }: { modalProps: RenderModalProps; }) {
         fallbackValue: EMPTY_META,
     });
 
-    const isUnsupportedFormat = blob && (
-        !blob.type.startsWith("audio/ogg")
-        || blob.type.includes("codecs") && !blob.type.includes("opus")
-    );
+    const isUnsupportedFormat = blob && (!blob.type.startsWith("audio/ogg") || blob.type.includes("codecs") && !blob.type.includes("opus"));
 
     return (
         <Modal
@@ -216,7 +244,7 @@ function VoiceMessageModal({ modalProps }: { modalProps: RenderModalProps; }) {
                 onClick: () => {
                     sendAudio(blob!, meta ?? EMPTY_META);
                     modalProps.onClose();
-                    showToast("Now sending voice message... Please be patient", Toasts.Type.MESSAGE);
+                    showToast("Now sending voice message... Please be patient", "clock");
                 },
                 disabled: !blob
             }]}

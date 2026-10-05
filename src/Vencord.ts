@@ -20,6 +20,8 @@
 import "~plugins";
 import "./fixWeirdAppRegionBug.css";
 
+import nativeTitleBarStyles from "./nativeTitleBar.css?managed";
+
 export * as Api from "./api";
 export * as Plugins from "./api/PluginManager";
 export * as Components from "./components";
@@ -29,16 +31,15 @@ export * as Webpack from "./webpack";
 export * as WebpackPatcher from "./webpack/patchWebpack";
 export { PlainSettings, Settings };
 
-import { coreStyleRootNode, initStyles } from "@api/Styles";
+import { enableStyle, initStyles } from "@api/Styles";
 import { openSettingsTabModal, UpdaterTab } from "@components/settings";
 import { openUpdateModal } from "@components/XmrcordUpdateModal";
 import { debounce } from "@shared/debounce";
-import { IS_WINDOWS } from "@utils/constants";
-import { createAndAppendStyle } from "@utils/css";
 import { StartAt } from "@utils/types";
 import { SettingsRouter } from "@webpack/common";
 
 import { get as dsGet } from "./api/DataStore";
+import { showNotice } from "./api/Notices";
 import { NotificationData, showNotification } from "./api/Notifications";
 import { initPluginManager, PMLogger, startAllPlugins } from "./api/PluginManager";
 import { PlainSettings, Settings, SettingsStore } from "./api/Settings";
@@ -53,10 +54,26 @@ if (IS_REPORTER) {
 }
 
 async function syncSettings() {
+    const hasCloudAuth = await dsGet("Vencord_cloudSecret");
+    if (!hasCloudAuth) {
+        if (Settings.cloud.authenticated) {
+            // User switched to an account that isn't connected to cloud
+            showNotification({
+                title: "Cloud Settings",
+                body: "Cloud sync was disabled because this account isn't connected to the cloud App. You can enable it again by connecting this account in Cloud Settings. (note: it will store your preferences separately)",
+                color: "var(--yellow-360)",
+                onClick: () => SettingsRouter.openUserSettings("equicord_cloud_panel")
+            });
+            // Disable cloud sync globally
+            Settings.cloud.authenticated = false;
+        }
+        return;
+    }
+
     // pre-check for local shared settings
     if (
         Settings.cloud.authenticated &&
-        !await dsGet("Vencord_cloudSecret") // this has been enabled due to local settings share or some other bug
+        !hasCloudAuth // this has been enabled due to local settings share or some other bug
     ) {
         // show a notification letting them know and tell them how to fix it
         showNotification({
@@ -64,7 +81,7 @@ async function syncSettings() {
             body: "We've noticed you have cloud integrations enabled in another client! Due to limitations, you will " +
                 "need to re-authenticate to continue using them. Click here to go to the settings page to do so!",
             color: "var(--yellow-360)",
-            onClick: () => SettingsRouter.openUserSettings("vencord_cloud_panel"),
+            onClick: () => SettingsRouter.openUserSettings("equicord_cloud_panel"),
             noPersist: true
         });
         return;
@@ -125,28 +142,31 @@ async function runUpdateCheck() {
 
         if (Settings.autoUpdate) {
             await update();
-            // Xmrcord: always show a changelog modal (styled like the CL modal) after an
-            // auto-update, listing what changed. Falls back to a toast if there's no change list.
+            // Xmrcord: show a changelog modal (styled like the CL modal) after an auto-update,
+            // listing what changed. Falls back to the notice if there's no change list.
+            if (notifiedForUpdatesThisSession) return;
+            notifiedForUpdatesThisSession = true;
+
             if (changes?.length) {
-                if (!notifiedForUpdatesThisSession) {
-                    notifiedForUpdatesThisSession = true;
-                    setTimeout(() => openUpdateModal(changes), 10_000);
-                }
+                setTimeout(() => openUpdateModal(changes), 10_000);
             } else if (Settings.autoUpdateNotification) {
-                notify({
-                    title: "Xmrcord has been updated!",
-                    body: "Click here to restart",
-                    onClick: relaunch
-                });
+                showNotice(
+                    "Xmrcord has been updated!",
+                    "Restart",
+                    relaunch
+                );
             }
             return;
         }
 
-        notify({
-            title: "An Xmrcord update is available!",
-            body: "Click here to view the update",
-            onClick: () => openSettingsTabModal(UpdaterTab!)
-        });
+        if (notifiedForUpdatesThisSession) return;
+        notifiedForUpdatesThisSession = true;
+
+        showNotice(
+            "A new version of Xmrcord is available!",
+            "View Update",
+            () => openSettingsTabModal(UpdaterTab!)
+        );
     } catch (err) {
         UpdateLogger.error("Failed to check for updates", err);
     }
@@ -158,7 +178,7 @@ async function init() {
 
     syncSettings();
 
-    if (!IS_WEB && !IS_UPDATER_DISABLED) {
+    if (!IS_DEV && !IS_WEB && !IS_UPDATER_DISABLED) {
         runUpdateCheck();
 
         // this tends to get really annoying, so only do this if the user has auto-update without notification enabled
@@ -174,7 +194,7 @@ async function init() {
                 "Webpack has finished initialising, but some patches haven't been applied yet.",
                 "This might be expected since some Modules are lazy loaded, but please verify",
                 "that all plugins are working as intended.",
-                "You are seeing this warning because this is a Development build of Vencord.",
+                "You are seeing this warning because this is a Development build of Equicord.",
                 "\nThe following patches have not been applied:",
                 "\n\n" + pendingPatches.map(p => `${p.plugin}: ${p.find}`).join("\n")
             );
@@ -189,8 +209,7 @@ init();
 document.addEventListener("DOMContentLoaded", () => {
     startAllPlugins(StartAt.DOMContentLoaded);
 
-    // FIXME
-    if (IS_DISCORD_DESKTOP && Settings.winNativeTitleBar && IS_WINDOWS) {
-        createAndAppendStyle("vencord-native-titlebar-style", coreStyleRootNode).textContent = "[class*=titleBar]{display: none!important}";
+    if (IS_DISCORD_DESKTOP && Settings.nativeTitleBar) {
+        enableStyle(nativeTitleBarStyles);
     }
 }, { once: true });

@@ -22,41 +22,45 @@ import { Card } from "@components/Card";
 import { Divider } from "@components/Divider";
 import { Flex } from "@components/Flex";
 import { FormSwitch } from "@components/FormSwitch";
-import { HeadingSecondary } from "@components/Heading";
+import { Heading, HeadingSecondary } from "@components/Heading";
 import { Link } from "@components/Link";
 import { Paragraph } from "@components/Paragraph";
 import { SettingsTab, wrapTab } from "@components/settings/tabs/BaseTab";
 import { Margins } from "@utils/margins";
-import { classes } from "@utils/misc";
 import { useAwaiter } from "@utils/react";
 import { getRepo, isNewer, UpdateLogger } from "@utils/updater";
-import { Forms, React } from "@webpack/common";
+import { React } from "@webpack/common";
 
 import gitHash from "~git-hash";
 
-import { CommonProps, HashLink, Newer, Updatable } from "./Components";
+import { HashLink, Newer, Updatable } from "./Components";
 
-function VesktopSection() {
-    if (!IS_VESKTOP) return null;
+interface CommonProps {
+    repo: string;
+    repoPending: boolean;
+}
 
-    const [isVesktopOutdated] = useAwaiter<boolean>(VesktopNative.app.isOutdated, { fallbackValue: false });
+function EquibopSection() {
+    if (!IS_EQUIBOP) return null;
+
+    const [isEquibopOutdated] = useAwaiter<boolean>(VesktopNative.app.isOutdated, { fallbackValue: false });
 
     return (
         <Flex className={Margins.bottom20} flexDirection="column" gap="1em">
-            <Card variant="info">
-                <HeadingSecondary>Vesktop & Vencord</HeadingSecondary>
-                <Paragraph>Vesktop and Vencord are two separate things. This updater is for Xmrcord.</Paragraph>
+            <Card variant="brand">
+                <HeadingSecondary>Equibop & Equicord</HeadingSecondary>
+                <Paragraph>Equibop and Equicord are two separate things. This updater is for Equicord.</Paragraph>
                 <Paragraph className={Margins.top8}>
-                    You receive separate popups for Vesktop updates. You can also manually update by installing the <Link href="https://vesktop.dev/install">latest version</Link>.
+                    You receive separate popups for Equibop updates. You can also manually update by installing the <Link href="https://equibop.org/install">latest version</Link>.
                 </Paragraph>
             </Card>
 
-            {isVesktopOutdated && (
+            {isEquibopOutdated && (
                 <Card variant="warning">
-                    <HeadingSecondary>Vesktop Outdated</HeadingSecondary>
+                    <HeadingSecondary>Equibop Outdated</HeadingSecondary>
                     <Flex flexDirection="column" gap="0.5em">
-                        <Paragraph>Your version of Vesktop is outdated!</Paragraph>
-                        <Button variant="link" onClick={() => VesktopNative.app.openUpdater()}>Open Vesktop Updater</Button>
+                        <Paragraph>Your version of Equibop is outdated!</Paragraph>
+                        <Button variant="link" onClick={() => VesktopNative.app.openUpdater()}>Open Equibop Updater</Button>
                     </Flex>
                 </Card>
             )}
@@ -67,10 +71,12 @@ function VesktopSection() {
 function Updater() {
     const settings = useSettings(["autoUpdate", "autoUpdateNotification"]);
 
-    const [repo, err, repoPending] = useAwaiter(getRepo, {
-        fallbackValue: "Loading...",
-        onError: e => UpdateLogger.error("Failed to retrieve repo", err)
-    });
+    const [repo, err, repoPending] = useAwaiter(getRepo, { fallbackValue: "Loading..." });
+
+    React.useEffect(() => {
+        if (err)
+            UpdateLogger.error("Failed to retrieve repo", err);
+    }, [err]);
 
     const commonProps: CommonProps = {
         repo,
@@ -79,19 +85,23 @@ function Updater() {
 
     return (
         <SettingsTab>
-            <VesktopSection />
+            <EquibopSection />
+            <Heading className={Margins.top16}>Update Preferences</Heading>
+            <Paragraph className={Margins.bottom20}>
+                Control how Equicord keeps itself up to date. You can choose to update automatically in the background or be notified when new updates are available.
+            </Paragraph>
 
             <div className="vc-settings-switches">
                 <FormSwitch
                     title="Automatically update"
-                    description="Automatically update Xmrcord without confirmation prompt"
+                    description="When enabled, Equicord will automatically download and install updates in the background without asking for confirmation. You'll need to restart Discord to apply the changes."
                     value={settings.autoUpdate}
                     onChange={(v: boolean) => settings.autoUpdate = v}
                     hideBorder
                 />
                 <FormSwitch
                     title="Get notified when an automatic update completes"
-                    description="Show a notification when Xmrcord automatically updates"
+                    description="Receive a notification when Equicord finishes downloading an update in the background, so you know when to restart Discord."
                     value={settings.autoUpdateNotification}
                     onChange={(v: boolean) => settings.autoUpdateNotification = v}
                     disabled={!settings.autoUpdate}
@@ -99,9 +109,13 @@ function Updater() {
                 />
             </div>
 
-            <Forms.FormTitle tag="h5" className={Margins.top20}>Repo</Forms.FormTitle>
+            <Divider className={Margins.top20} />
 
-            <Forms.FormText>
+            <Heading className={Margins.top20}>Repository</Heading>
+            <Paragraph className={Margins.bottom8}>
+                This is the GitHub repository where Equicord fetches updates from.
+            </Paragraph>
+            <Paragraph color="text-subtle">
                 {repoPending
                     ? repo
                     : err
@@ -112,18 +126,13 @@ function Updater() {
                             </Link>
                         )
                 }
-                {" "}
-                (<HashLink hash={gitHash} repo={repo} disabled={repoPending} />)
-            </Forms.FormText>
+                {" "}(<HashLink hash={gitHash} repo={repo} disabled={repoPending} />)
+            </Paragraph>
 
-            <Divider className={classes(Margins.top16, Margins.bottom16)} />
+            <Divider className={Margins.top20} />
 
-            <Forms.FormTitle tag="h5">Updates</Forms.FormTitle>
-
-            {isNewer
-                ? <Newer {...commonProps} />
-                : <Updatable {...commonProps} />
-            }
+            <Heading className={Margins.top20}>Updates</Heading>
+            {isNewer ? <Newer {...commonProps} /> : <Updatable {...commonProps} />}
         </SettingsTab>
     );
 }

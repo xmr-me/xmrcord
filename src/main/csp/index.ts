@@ -15,6 +15,7 @@ export const CssSrc = ["style-src", "font-src"];
 export const ImageAndMediaSrc = [...ImageSrc, "media-src"];
 export const ImageAndCssSrc = [...ImageSrc, ...CssSrc];
 export const ImageScriptsAndCssSrc = [...ImageAndCssSrc, "script-src", "worker-src"];
+export const CSPSrc = ["style-src", "connect-src", "img-src", "frame-src", "font-src", "media-src", "worker-src"];
 
 // Plugins can whitelist their own domains by importing this object in their native.ts
 // script and just adding to it. But generally, you should just edit this file instead
@@ -96,7 +97,6 @@ const stringifyPolicy = (policy: PolicyMap): string =>
         .map(directive => directive.flat().join(" "))
         .join("; ");
 
-
 const patchCsp = (headers: PolicyMap) => {
     const reportOnlyHeader = findHeader(headers, "content-security-policy-report-only");
     if (reportOnlyHeader)
@@ -119,7 +119,7 @@ const patchCsp = (headers: PolicyMap) => {
         pushDirective("script-src", "'unsafe-inline'", "'unsafe-eval'");
 
         for (const directive of ["style-src", "connect-src", "img-src", "font-src", "media-src", "worker-src"]) {
-            pushDirective(directive, "blob:", "data:", "vencord:", "vesktop:");
+            pushDirective(directive, "blob:", "data:", "vencord:", "vesktop:", "equicord:", "equibop:");
         }
 
         for (const [host, directives] of Object.entries(NativeSettings.store.customCspRules)) {

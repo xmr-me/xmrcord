@@ -5,11 +5,11 @@ compilador C# que já vem no Windows (.NET Framework 4.x), não precisa de Visua
 
 ## O que ele faz
 
-- Detecta **Discord Stable, PTB e Canary** instalados no usuário.
-- Para cada um escolhido: faz backup do `app.asar` original como `_app.asar` e grava um stub
-  que carrega o Xmrcord de `%APPDATA%\Xmrcord\dist`.
-- Baixa a última build da [release `latest`](https://github.com/xmr-me/xmrcord/releases/latest).
-- Importa configurações de uma instalação antiga do Vencord, se existir.
+- Detecta **Discord Stable, PTB e Canary** instalados no usuário (mostra o ícone de cada um).
+- Para cada um escolhido: faz backup do `app.asar` original como `_app.asar` e coloca no lugar o
+  **`desktop.asar`** do Xmrcord.
+- Baixa o `desktop.asar` da [release `latest`](https://github.com/xmr-me/xmrcord/releases/latest).
+- Importa configurações de uma instalação antiga do Vencord/Equicord, se existir.
 - **Desinstalar** restaura o `app.asar` original.
 
 Tudo no escopo do usuário — **não precisa de admin**.
@@ -20,23 +20,19 @@ Tudo no escopo do usuário — **não precisa de admin**.
 powershell -ExecutionPolicy Bypass -File installer\build.ps1
 ```
 
-Saída: `installer\XmrcordInstaller.exe`.
+Embute a fonte Poppins (`installer/fonts/*.ttf`) e a Monero-chan (`installer/assets/monero-chan.png`),
+e usa `installer/app.ico` como ícone do exe. Saída: `installer\XmrcordInstaller.exe`.
 
-Depois de uma release existir, anexe o `.exe` a ela para os amigos baixarem:
+Depois, anexe o `.exe` à release para os amigos baixarem:
 
 ```powershell
-gh release upload latest installer\XmrcordInstaller.exe --clobber
+gh release upload latest installer\XmrcordInstaller.exe --repo xmr-me/xmrcord --clobber
 ```
 
-## Como funciona o patch (asar stub)
+## Como funciona o patch
 
-O Discord carrega `resources/app.asar`. O instalador renomeia o original para `_app.asar` e
-grava no lugar um `app.asar` mínimo cujo `index.js` é só:
-
-```js
-require("C:\\Users\\<voce>\\AppData\\Roaming\\Xmrcord\\dist\\patcher.js")
-```
-
-O `patcher.js` do Xmrcord carrega o Discord real a partir de `_app.asar` e injeta os plugins.
-É o mesmo método do instalador oficial do Vencord — o formato do stub foi validado byte-a-byte
-contra uma instalação real.
+O Discord carrega `resources/app.asar`. O Xmrcord (base Equicord) é empacotado como um único
+`desktop.asar`. O instalador renomeia o `app.asar` original para `_app.asar` e grava o
+`desktop.asar` do Xmrcord como `app.asar`. O patcher dentro dele carrega o Discord real a partir
+do `_app.asar`. É o mesmo método do instalador oficial do Equicord (Equilotl); o auto-update
+sobrescreve esse `app.asar` sozinho quando sai uma build nova.

@@ -12,13 +12,13 @@ import { Devs } from "@utils/constants";
 import { classes } from "@utils/misc";
 import definePlugin, { OptionType, StartAt } from "@utils/types";
 import { Channel } from "@vencord/discord-types";
-import { findCssClassesLazy, findStoreLazy } from "@webpack";
+import { findCssClassesLazy } from "@webpack";
 import { Clickable, ContextMenuApi, FluxDispatcher, Menu, React } from "@webpack/common";
 
 import { contextMenus } from "./components/contextMenu";
 import { openCategoryModal, requireSettingsModal } from "./components/CreateCategoryModal";
 import { DEFAULT_CHUNK_SIZE } from "./constants";
-import { canMoveCategory, canMoveCategoryInDirection, Category, categoryLen, collapseCategory, getAllUncollapsedChannels, getCategoryByIndex, getSections, init, isPinned, moveCategory, removeCategory, usePinnedDms } from "./data";
+import { canMoveCategory, canMoveCategoryInDirection, Category, categoryLen, collapseCategory, getAllUncollapsedChannels, getCategoryByIndex, getCategoryChannels, getSections, init, isPinned, moveCategory, removeCategory, usePinnedDms } from "./data";
 
 interface ChannelComponentProps {
     children: React.ReactNode,
@@ -27,8 +27,6 @@ interface ChannelComponentProps {
 }
 
 const headerClasses = findCssClassesLazy("privateChannelsHeaderContainer", "headerText");
-
-export const PrivateChannelSortStore = findStoreLazy("PrivateChannelSortStore") as { getPrivateChannelIds: () => string[]; };
 
 export let instance: any;
 
@@ -61,8 +59,9 @@ export const settings = definePluginSettings({
     },
     userBasedCategoryList: {
         type: OptionType.CUSTOM,
-        default: {} as Record<string, Category[]>
-    }
+        default: {} as Record<string, Category[]>,
+        description: "",
+    },
 });
 
 export default definePlugin({
@@ -125,7 +124,6 @@ export default definePlugin({
 
             ]
         },
-
 
         // forceUpdate moment
         // https://regex101.com/r/kDN9fO/1
@@ -243,18 +241,20 @@ export default definePlugin({
         const category = getCategoryByIndex(categoryIndex - 1);
         if (!category) return false;
 
-        return category.collapsed && this.instance.props.selectedChannelId !== this.getCategoryChannels(category)[channelIndex];
+        return category.collapsed && this.instance.props.selectedChannelId !== getCategoryChannels(category)[channelIndex];
     },
 
     getScrollOffset(channelId: string, rowHeight: number, padding: number, preRenderedChildren: number, originalOffset: number) {
+        const channels = this.getAllUncollapsedChannels();
+
         if (!isPinned(channelId))
             return (
                 (rowHeight + padding) * 2 // header
-                + rowHeight * this.getAllUncollapsedChannels().length // pins
+                + rowHeight * channels.length // pins
                 + originalOffset // original pin offset minus pins
             );
 
-        return rowHeight * (this.getAllUncollapsedChannels().indexOf(channelId) + preRenderedChildren) + padding;
+        return rowHeight * (channels.indexOf(channelId) + preRenderedChildren) + padding;
     },
 
     renderCategory: ErrorBoundary.wrap(({ section }: { section: number; }) => {
@@ -308,7 +308,6 @@ export default definePlugin({
                                 action={() => removeCategory(category.id)}
                             />
 
-
                         </Menu.Menu>
                     ));
                 }}
@@ -350,18 +349,12 @@ export default definePlugin({
         const category = getCategoryByIndex(sectionIndex - 1);
         if (!category) return { channel: null, category: null };
 
-        const channelId = this.getCategoryChannels(category)[index];
+        const channelId = getCategoryChannels(category)[index];
 
         return { channel: channels[channelId], category };
     },
 
     getCategoryChannels(category: Category) {
-        if (category.channels.length === 0) return [];
-
-        if (settings.store.pinOrder === PinOrder.LastMessage) {
-            return PrivateChannelSortStore.getPrivateChannelIds().filter(c => category.channels.includes(c));
-        }
-
-        return category?.channels ?? [];
+        return getCategoryChannels(category);
     }
 });

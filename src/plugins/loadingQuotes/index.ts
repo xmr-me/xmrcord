@@ -86,7 +86,6 @@ export default definePlugin({
             if (!enableDiscordPresetQuotes)
                 quotes.length = 0;
 
-
             if (enablePluginPresetQuotes)
                 quotes.push(...presetQuotes);
 

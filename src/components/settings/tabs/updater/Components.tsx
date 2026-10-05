@@ -4,15 +4,18 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+import { Button } from "@components/Button";
 import { Card } from "@components/Card";
 import { ErrorCard } from "@components/ErrorCard";
 import { Flex } from "@components/Flex";
 import { Link } from "@components/Link";
+import { Paragraph } from "@components/Paragraph";
+import { Span } from "@components/Span";
 import { Margins } from "@utils/margins";
-import { classes } from "@utils/misc";
 import { relaunch } from "@utils/native";
 import { changes, checkForUpdates, update, updateError } from "@utils/updater";
-import { Button, ConfirmModal,Forms, openModal, React, Toasts, useState } from "@webpack/common";
+import { ToastPosition } from "@vencord/discord-types/enums";
+import { ConfirmModal, openModal, React, showToast, useState } from "@webpack/common";
 
 import { runWithDispatch } from "./runWithDispatch";
 
@@ -24,32 +27,33 @@ export interface CommonProps {
 export function HashLink({ repo, hash, disabled = false }: { repo: string, hash: string, disabled?: boolean; }) {
     return (
         <Link href={`${repo}/commit/${hash}`} disabled={disabled}>
-            {hash}
+            {hash.slice(0, 7)}
         </Link>
     );
 }
 
 export function Changes({ updates, repo, repoPending }: CommonProps & { updates: typeof changes; }) {
     return (
-        <Card style={{ padding: "0 0.5em" }} defaultPadding={false}>
-            {updates.map(({ hash, author, message }) => (
+        <Card className={Margins.top16} style={{ padding: 0 }} defaultPadding={false}>
+            {updates.map(({ hash, author, message }, i) => (
                 <div
                     key={hash}
                     style={{
-                        marginTop: "0.5em",
-                        marginBottom: "0.5em"
+                        padding: "12px 16px",
+                        borderBottom: i < updates.length - 1 ? "1px solid var(--border-subtle)" : undefined
                     }}
                 >
-                    <code>
-                        <HashLink {...{ repo, hash }} disabled={repoPending} />
-                    </code>
-
-                    <span style={{
-                        marginLeft: "0.5em",
-                        color: "var(--text-default)"
-                    }}>
-                        {message} - {author}
-                    </span>
+                    <Flex style={{ alignItems: "center", gap: 8 }}>
+                        <code style={{ color: "var(--text-link)" }}>
+                            <HashLink {...{ repo, hash }} disabled={repoPending} />
+                        </code>
+                        <Span size="sm" color="text-default">
+                            {message}
+                        </Span>
+                        <Span size="sm" color="text-subtle">
+                            — {author}
+                        </Span>
+                    </Flex>
                 </div>
             ))}
         </Card>
@@ -59,9 +63,9 @@ export function Changes({ updates, repo, repoPending }: CommonProps & { updates:
 export function Newer(props: CommonProps) {
     return (
         <>
-            <Forms.FormText className={Margins.bottom8}>
-                Your local copy has more recent commits. Please stash or reset them.
-            </Forms.FormText>
+            <Paragraph>
+                Your local copy has more recent commits than the remote repository. This usually happens when you've made local changes. Please stash or reset them before updating.
+            </Paragraph>
             <Changes {...props} updates={changes} />
         </>
     );
@@ -76,24 +80,29 @@ export function Updatable(props: CommonProps) {
 
     return (
         <>
-            {!updates && updateError ? (
-                <>
-                    <Forms.FormText>Failed to check updates. Check the console for more info</Forms.FormText>
-                    <ErrorCard style={{ padding: "1em" }}>
-                        <p>{updateError.stderr || updateError.stdout || "An unknown error occurred"}</p>
-                    </ErrorCard>
-                </>
-            ) : (
-                <Forms.FormText className={Margins.bottom8}>
-                    {isOutdated ? (updates.length === 1 ? "There is 1 Update" : `There are ${updates.length} Updates`) : "Up to Date!"}
-                </Forms.FormText>
-            )}
+            <Flex className={Margins.bottom8} gap="8px">
+                <Button
+                    disabled={isUpdating || isChecking}
+                    onClick={runWithDispatch(setIsChecking, async () => {
+                        const outdated = await checkForUpdates();
 
-            {isOutdated && <Changes updates={updates} {...props} />}
+                        if (outdated) {
+                            setUpdates(changes);
+                        } else {
+                            setUpdates([]);
 
-            <Flex className={classes(Margins.bottom8, Margins.top8)}>
+                            showToast("No updates found!", "message", {
+                                position: ToastPosition.BOTTOM
+                            });
+                        }
+                    })}
+                >
+                    Check for Updates
+                </Button>
                 {isOutdated && (
                     <Button
+                        size="small"
+                        variant="primary"
                         disabled={isUpdating || isChecking}
                         onClick={runWithDispatch(setIsUpdating, async () => {
                             if (await update()) {
@@ -122,30 +131,26 @@ export function Updatable(props: CommonProps) {
                         Update Now
                     </Button>
                 )}
-                <Button
-                    disabled={isUpdating || isChecking}
-                    onClick={runWithDispatch(setIsChecking, async () => {
-                        const outdated = await checkForUpdates();
-
-                        if (outdated) {
-                            setUpdates(changes);
-                        } else {
-                            setUpdates([]);
-
-                            Toasts.show({
-                                message: "No updates found!",
-                                id: Toasts.genId(),
-                                type: Toasts.Type.MESSAGE,
-                                options: {
-                                    position: Toasts.Position.BOTTOM
-                                }
-                            });
-                        }
-                    })}
-                >
-                    Check for Updates
-                </Button>
             </Flex>
+            {!updates && updateError ? (
+                <>
+                    <Span size="md" weight="medium" color="text-strong">Error checking for updates</Span>
+                    <ErrorCard className={Margins.top8} style={{ padding: "1em" }}>
+                        <p>{updateError.stderr || updateError.stdout || "An unknown error occurred"}</p>
+                    </ErrorCard>
+                </>
+            ) : isOutdated ? (
+                <>
+                    <Paragraph>
+                        There {updates.length === 1 ? "is 1 update" : `are ${updates.length} updates`} available. Click the button above to download and install.
+                    </Paragraph>
+                    <Changes updates={updates} {...props} />
+                </>
+            ) : (
+                <Paragraph>
+                    You're running the latest version of Equicord.
+                </Paragraph>
+            )}
         </>
     );
 }

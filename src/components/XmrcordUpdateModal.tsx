@@ -82,18 +82,21 @@ function UpdateModal({ changes, modalProps }: { changes: UpdateChange[]; modalPr
 
                     <ScrollerThin fade style={{ maxHeight: 280 }}>
                         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                            {changes.map(c => (
-                                <div key={c.hash} style={{ display: "flex", gap: 10, alignItems: "baseline" }}>
-                                    {repoUrl
-                                        ? <Link href={`${repoUrl}/commit/${c.hash}`} style={hashChipStyle}>{c.hash}</Link>
-                                        : <span style={hashChipStyle}>{c.hash}</span>
-                                    }
-                                    <div style={{ flex: 1, minWidth: 0 }}>
-                                        <Paragraph style={{ margin: 0 }}>{c.message}</Paragraph>
-                                        <Paragraph style={{ margin: 0, opacity: 0.6, fontSize: 12 }}>por {c.author}</Paragraph>
+                            {changes.map(c => {
+                                const short = c.hash.slice(0, 7);
+                                return (
+                                    <div key={c.hash} style={{ display: "flex", gap: 10, alignItems: "baseline" }}>
+                                        {repoUrl
+                                            ? <Link href={`${repoUrl}/commit/${c.hash}`} style={hashChipStyle}>{short}</Link>
+                                            : <span style={hashChipStyle}>{short}</span>
+                                        }
+                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                            <Paragraph style={{ margin: 0 }}>{c.message}</Paragraph>
+                                            <Paragraph style={{ margin: 0, opacity: 0.6, fontSize: 12 }}>por {c.author}</Paragraph>
+                                        </div>
                                     </div>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     </ScrollerThin>
                 </div>

@@ -29,6 +29,13 @@ const settings = definePluginSettings({
         description: "Disable Discord's tracking (analytics/'science')",
         default: true,
         restartNeeded: true
+    },
+    disableStackDumping: {
+        type: OptionType.BOOLEAN,
+        description: "Print a native stack trace to the console when Discord crashes. Requires full restart.",
+        default: false,
+        restartNeeded: true,
+        target: "DESKTOP"
     }
 });
 
@@ -36,6 +43,7 @@ export default definePlugin({
     name: "NoTrack",
     description: "Disable Discord's tracking (analytics/'science'), metrics and Sentry crash reporting",
     authors: [Devs.Cyn, Devs.Ven, Devs.Nuckyz, Devs.Arrow],
+    tags: ["Utility"],
     required: true,
 
     settings,

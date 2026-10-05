@@ -21,6 +21,7 @@ import electron, { app, BrowserWindowConstructorOptions, Menu } from "electron";
 import { dirname, join } from "path";
 
 import { RendererSettings } from "./settings";
+import { patchTrayMenu } from "./trayMenu";
 import { IS_VANILLA } from "./utils/constants";
 
 console.log("[Xmrcord] Starting up...");
@@ -28,20 +29,32 @@ console.log("[Xmrcord] Starting up...");
 // Our injector file at app/index.js
 const injectorPath = require.main!.filename;
 
-// Original Discord app.asar name
-const asarName = require.main!.path.endsWith("app.asar") ? "_app.asar" : "app.asar";
-
-// Original Discord app.asar
-const asarPath = join(dirname(injectorPath), "..", asarName);
+// The original app.asar
+const asarPath = join(dirname(injectorPath), "..", "_app.asar");
 
 const discordPkg = require(join(asarPath, "package.json"));
 require.main!.filename = join(asarPath, discordPkg.main);
+if (IS_VESKTOP || IS_EQUIBOP) require.main!.filename = join(dirname(injectorPath), "..", "..", "package.json");
 
 // @ts-expect-error Untyped method? Dies from cringe
 app.setAppPath(asarPath);
 
 if (!IS_VANILLA) {
     const settings = RendererSettings.store;
+
+    patchTrayMenu();
+
+    /*
+     * re-apply the patch when discord ships a new host version. skipped
+     * on vesktop and equibop because they manage their own updates.
+     */
+    if (!IS_VESKTOP && !IS_EQUIBOP) {
+        try {
+            require("./hostUpdateHook").installHostUpdateHook();
+        } catch (err) {
+            console.error("[Xmrcord] Failed to install host update hook", err);
+        }
+    }
 
     // Repatch after host updates on Windows and Linux
     if (process.platform === "win32" || process.platform === "linux") {
@@ -74,15 +87,18 @@ if (!IS_VANILLA) {
                 return;
             }
 
-            const { frameless, winNativeTitleBar, disableMinSize, transparent, macosVibrancyStyle, windowsMaterial } = settings;
+            const { frameless, mainWindowFrameless, nativeTitleBar, disableMinSize, transparent, macosVibrancyStyle, windowsMaterial } = settings;
 
             const original = options.webPreferences.preload;
+            const isMainWindow = options.title === "Discord";
             options.webPreferences.preload = join(__dirname, "preload.js");
             options.webPreferences.sandbox = false;
 
-            if (frameless) {
+            if (mainWindowFrameless && isMainWindow) {
                 options.frame = false;
-            } else if (process.platform === "win32" && winNativeTitleBar) {
+            } else if (frameless) {
+                options.frame = false;
+            } else if (process.platform === "win32" && nativeTitleBar) {
                 delete options.frame;
             }
 
@@ -134,8 +150,9 @@ if (!IS_VANILLA) {
     });
 
     process.env.DATA_DIR = join(app.getPath("userData"), "..", "Xmrcord");
+    if (settings.plugins?.NoTrack?.disableStackDumping !== false) process.env.ELECTRON_ENABLE_STACK_DUMPING = "true";
 } else {
-    console.log("[Xmrcord] Running in vanilla mode. Not loading Vencord");
+    console.log("[Xmrcord] Running in vanilla mode. Not loading Equicord");
 }
 
 console.log("[Xmrcord] Loading original Discord app.asar");

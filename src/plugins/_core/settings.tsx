@@ -1,24 +1,22 @@
 /*
- * Vencord, a modification for Discord's desktop app
- * Copyright (c) 2022 Vendicated and Megumin
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
-*/
+ * Vencord, a Discord client mod
+ * Copyright (c) 2025 Vendicated and contributors
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
 
 import { definePluginSettings } from "@api/Settings";
-import { BackupRestoreIcon, CloudIcon, MainSettingsIcon, PaintbrushIcon, PatchHelperIcon, PlaceholderIcon, PluginsIcon, UpdaterIcon, VesktopSettingsIcon } from "@components/Icons";
-import { BackupAndRestoreTab, CloudTab, PatchHelperTab, PluginsTab, ThemesTab, UpdaterTab, VencordTab } from "@components/settings/tabs";
+import { BackupRestoreIcon, CloudIcon, LogIcon, MainSettingsIcon, PaintbrushIcon, PatchHelperIcon, PluginsIcon, UpdaterIcon } from "@components/Icons";
+import {
+    BackupAndRestoreTab,
+    ChangelogTab,
+    CloudTab,
+    PatchHelperTab,
+    PluginsTab,
+    ThemesTab,
+    UpdaterTab,
+    VencordTab,
+} from "@components/settings";
+import { gitHashShort } from "@shared/vencordUserAgent";
 import { Devs } from "@utils/constants";
 import { isTruthy } from "@utils/guards";
 import definePlugin, { IconProps, OptionType } from "@utils/types";
@@ -26,7 +24,27 @@ import { waitFor } from "@webpack";
 import { React } from "@webpack/common";
 import type { ComponentType, PropsWithChildren, ReactNode } from "react";
 
-import gitHash from "~git-hash";
+const enum LayoutType {
+    ROOT = 0,
+    SECTION = 1,
+    SIDEBAR_ITEM = 2,
+    PANEL = 3,
+    SPLIT = 4,
+    CATEGORY = 5,
+    ACCORDION = 6,
+    LIST = 7,
+    RELATED = 8,
+    FIELD_SET = 9,
+    TAB_ITEM = 10,
+    STATIC = 11,
+    BUTTON = 12,
+    TOGGLE = 13,
+    SLIDER = 14,
+    SELECT = 15,
+    RADIO = 16,
+    NAVIGATOR = 17,
+    CUSTOM = 18
+}
 
 let LayoutTypes = {
     SECTION: 1,
@@ -37,12 +55,11 @@ let LayoutTypes = {
 };
 waitFor(["SECTION", "SIDEBAR_ITEM", "PANEL", "CUSTOM"], v => LayoutTypes = v);
 
-const FallbackSectionTypes = {
-    HEADER: "HEADER",
-    DIVIDER: "DIVIDER",
-    CUSTOM: "CUSTOM"
-};
-type SectionTypes = typeof FallbackSectionTypes;
+const enum SectionType {
+    HEADER = "HEADER",
+    DIVIDER = "DIVIDER",
+    CUSTOM = "CUSTOM"
+}
 
 type SettingsLocation =
     | "top"
@@ -53,7 +70,7 @@ type SettingsLocation =
     | "bottom";
 
 interface SettingsLayoutNode {
-    type: number;
+    type: LayoutType;
     key?: string;
     legacySearchKey?: string;
     getLegacySearchKey?(): string;
@@ -66,12 +83,13 @@ interface SettingsLayoutNode {
 }
 
 interface EntryOptions {
-    key: string,
-    title: string,
-    panelTitle?: string,
-    Component: ComponentType<{}>,
+    key: string;
+    title: string;
+    panelTitle?: string;
+    Component: ComponentType<{}>;
     Icon: ComponentType<IconProps>;
 }
+
 interface SettingsLayoutBuilder {
     key?: string;
     buildLayout(): SettingsLayoutNode[];
@@ -83,10 +101,10 @@ const settings = definePluginSettings({
         description: "Where to put the Xmrcord settings section",
         options: [
             { label: "At the very top", value: "top" },
-            { label: "Above the Nitro section", value: "aboveNitro", default: true },
-            { label: "Below the Nitro section", value: "belowNitro" },
-            { label: "Above Activity Settings", value: "aboveActivity" },
-            { label: "Below Activity Settings", value: "belowActivity" },
+            { label: "Above Billing section", value: "aboveNitro", default: true },
+            { label: "Below Billing section", value: "belowNitro" },
+            { label: "Above Games & Apps Settings", value: "aboveActivity" },
+            { label: "Below Games & Apps Settings", value: "belowActivity" },
             { label: "At the very bottom", value: "bottom" },
         ] as { label: string; value: SettingsLocation; default?: boolean; }[]
     },
@@ -101,6 +119,7 @@ export default definePlugin({
     name: "Settings",
     description: "Adds Settings UI and debug info",
     authors: [Devs.Ven, Devs.Megu],
+    tags: ["Utility"],
     required: true,
 
     settings,
@@ -109,6 +128,10 @@ export default definePlugin({
         {
             find: "#{intl::COPY_VERSION}",
             replacement: [
+                {
+                    match: /\.RELEASE_CHANNEL/,
+                    replace: "$&.replace(/^./, c => c.toUpperCase())"
+                },
                 {
                     match: /"text-xxs\/normal".{0,300}?(?=null!=(\i)&&(.{0,20}\i\.\i.{0,200}?,children:).{0,15}?("span"),{className:(\i\.\i),children:\["Build Override: ",\1\.id,\i\]\}\)\}\))/,
                     replace: (m, _buildOverride, makeRow, component, className) => {
@@ -162,77 +185,70 @@ export default definePlugin({
         const layout = originalLayoutBuilder.buildLayout();
         if (originalLayoutBuilder.key !== "$Root") return layout;
         if (!Array.isArray(layout)) return layout;
-
-        if (layout.some(s => s?.key === "vencord_section")) return layout;
+        if (layout.some(s => s?.key === "equicord_section")) return layout;
 
         const { buildEntry } = this;
 
-        const vencordEntries: SettingsLayoutNode[] = [
+        const equicordEntries: SettingsLayoutNode[] = [
             buildEntry({
-                key: "vencord_main",
+                key: "equicord_main",
                 title: "Xmrcord",
                 panelTitle: "Xmrcord Settings",
                 Component: VencordTab,
                 Icon: MainSettingsIcon
             }),
             buildEntry({
-                key: "vencord_plugins",
+                key: "equicord_plugins",
                 title: "Plugins",
                 Component: PluginsTab,
                 Icon: PluginsIcon
             }),
             buildEntry({
-                key: "vencord_themes",
+                key: "equicord_themes",
                 title: "Themes",
                 Component: ThemesTab,
                 Icon: PaintbrushIcon
             }),
             !IS_UPDATER_DISABLED && UpdaterTab && buildEntry({
-                key: "vencord_updater",
+                key: "equicord_updater",
                 title: "Updater",
                 panelTitle: "Xmrcord Updater",
                 Component: UpdaterTab,
                 Icon: UpdaterIcon
             }),
             buildEntry({
-                key: "vencord_cloud",
+                key: "equicord_changelog",
+                title: "Changelog",
+                Component: ChangelogTab,
+                Icon: LogIcon,
+            }),
+            buildEntry({
+                key: "equicord_cloud",
                 title: "Cloud",
                 panelTitle: "Xmrcord Cloud",
                 Component: CloudTab,
                 Icon: CloudIcon
             }),
             buildEntry({
-                key: "vencord_backup_restore",
+                key: "equicord_backup_restore",
                 title: "Backup & Restore",
                 Component: BackupAndRestoreTab,
                 Icon: BackupRestoreIcon
             }),
             !IS_STANDALONE && PatchHelperTab && buildEntry({
-                key: "vencord_patch_helper",
+                key: "equicord_patch_helper",
                 title: "Patch Helper",
                 Component: PatchHelperTab,
                 Icon: PatchHelperIcon
             }),
-            ...this.customEntries.map(buildEntry),
-            // TODO: Remove deprecated customSections in a future update
-            ...this.customSections.map((func, i) => {
-                const { section, element, label } = func(FallbackSectionTypes);
-                if (Object.values(FallbackSectionTypes).includes(section)) return null;
-
-                return buildEntry({
-                    key: `vencord_deprecated_custom_${section}`,
-                    title: label,
-                    Component: element,
-                    Icon: section === "Vesktop" ? VesktopSettingsIcon : PlaceholderIcon
-                });
-            })
+            ...this.customEntries.map(buildEntry)
         ].filter(isTruthy);
 
-        const vencordSection: SettingsLayoutNode = {
-            key: "vencord_section",
+        const equicordSection: SettingsLayoutNode = {
+            key: "equicord_section",
             type: LayoutTypes.SECTION,
             useTitle: () => "Xmrcord Settings",
-            buildLayout: () => vencordEntries
+            buildLayout: () => equicordEntries
         };
 
         const { settingsLocation } = settings.store;
@@ -255,42 +271,49 @@ export default definePlugin({
             idx += 1;
         }
 
-        layout.splice(idx, 0, vencordSection);
+        layout.splice(idx, 0, equicordSection);
 
         return layout;
     },
 
-    /** @deprecated Use customEntries */
-    customSections: [] as ((SectionTypes: SectionTypes) => any)[],
+    customSections: [] as ((SectionTypes: Record<string, string>) => { section: string; element: ComponentType; label: string; id?: string; })[],
     customEntries: [] as EntryOptions[],
 
     get electronVersion() {
-        return VencordNative.native.getVersions().electron || window.legcord?.electron || null;
+        return VencordNative.native.getVersions().electron ?? window.legcord?.electron ?? null;
     },
 
     get chromiumVersion() {
         try {
-            return VencordNative.native.getVersions().chrome
-                // @ts-expect-error Typescript will add userAgentData IMMEDIATELY
-                || navigator.userAgentData?.brands?.find(b => b.brand === "Chromium" || b.brand === "Google Chrome")?.version
-                || null;
-        } catch { // inb4 some stupid browser throws unsupported error for navigator.userAgentData, it's only in chromium
+            return (
+                VencordNative.native.getVersions().chrome ??
+                // @ts-expect-error userAgentData types
+                navigator.userAgentData?.brands?.find(
+                    (b: { brand: string; }) => b.brand === "Chromium" || b.brand === "Google Chrome",
+                )?.version ??
+                null
+            );
+        } catch {
             return null;
         }
     },
 
-    get additionalInfo() {
-        if (IS_DEV) return " (Dev)";
-        if (IS_WEB) return " (Web)";
-        if (IS_VESKTOP) return ` (Vesktop v${VesktopNative.app.getVersion()})`;
-        if (IS_STANDALONE) return " (Standalone)";
-        return "";
+    getVersionInfo(support = true) {
+        let version = "";
+
+        if (IS_DEV) version = "Dev Build";
+        if (IS_WEB) version = "Web";
+        if (IS_VESKTOP) version = `Vesktop v${VesktopNative.app.getVersion()}`;
+        if (IS_EQUIBOP) version = `Equibop v${VesktopNative.app.getVersion()}`;
+        if (IS_STANDALONE) version = "Standalone";
+
+        return support && version ? ` (${version})` : version;
     },
 
     getInfoRows() {
-        const { electronVersion, chromiumVersion, additionalInfo } = this;
+        const { electronVersion, chromiumVersion, getVersionInfo } = this;
 
-        const rows = [`Xmrcord ${gitHash}${additionalInfo}`];
+        const rows = [`Xmrcord ${gitHashShort}${getVersionInfo()}`];
 
         if (electronVersion) rows.push(`Electron ${electronVersion}`);
         if (chromiumVersion) rows.push(`Chromium ${chromiumVersion}`);

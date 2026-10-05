@@ -39,9 +39,11 @@ declare global {
     export var IS_UPDATER_DISABLED: boolean;
     export var IS_DEV: boolean;
     export var IS_REPORTER: boolean;
+    export var IS_COMPANION_TEST: boolean;
     export var IS_ANTI_CRASH_TEST: boolean;
     export var IS_DISCORD_DESKTOP: boolean;
     export var IS_VESKTOP: boolean;
+    export var IS_EQUIBOP: boolean;
     export var VERSION: string;
     export var BUILD_TIMESTAMP: number;
 
@@ -59,7 +61,9 @@ declare global {
      */
     export var DiscordNative: any;
     export var Vesktop: any;
+    export var Equibop: any;
     export var VesktopNative: any;
+    export var unsafeWindow: any;
 
     interface Window extends Record<PropertyKey, any> { }
 
@@ -67,7 +71,6 @@ declare global {
         restrictOwnAudio?: boolean;
         suppressLocalAudioPlayback?: boolean;
     }
-
 
     type CaptureController = {
         decreaseZoomLevel(): Promise<undefined>;

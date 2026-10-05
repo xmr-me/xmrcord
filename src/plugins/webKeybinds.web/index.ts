@@ -21,7 +21,6 @@ import { Devs, IS_MAC } from "@utils/constants";
 import definePlugin, { OptionType } from "@utils/types";
 import { SettingsRouter } from "@webpack/common";
 
-
 const settings = definePluginSettings({
     showNavigationButtons: {
         type: OptionType.BOOLEAN,
@@ -32,14 +31,14 @@ const settings = definePluginSettings({
     overrideCommonKeybinds: {
         type: OptionType.BOOLEAN,
         description: "Allows discord to override the most common tab navigation keybinds (ctrl+t, ctrl+shift+t, ctrl+tab, ctrl+shift+tab, ctrl+n). Only works in a few select browsers that allow website keybinds to take priority over native ones.",
-        default: IS_VESKTOP,
+        default: IS_VESKTOP || IS_EQUIBOP,
         restartNeeded: true,
     }
 });
 
 export default definePlugin({
     name: "WebKeybinds",
-    description: "Re-adds keybinds missing in the web version of Discord. Only works fully on Vesktop/Legcord, not inside your browser",
+    description: "Re-adds keybinds missing in the web version of Discord. Only works fully on Vesktop/Equibop/Legcord, not inside your browser",
     tags: ["Shortcuts"],
     authors: [Devs.Ven, Devs.Davri],
     enabledByDefault: true,

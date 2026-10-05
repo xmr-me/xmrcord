@@ -68,13 +68,12 @@ namespace XmrcordInstaller
 
         // ---- constants ----
         const string RELEASE_BASE = "https://github.com/xmr-me/xmrcord/releases/latest/download/";
-        static readonly string[] DIST_FILES = { "patcher.js", "preload.js", "renderer.js", "renderer.css" };
-        static readonly string[] OPTIONAL_FILES = { "patcher.js.LEGAL.txt", "renderer.js.LEGAL.txt" };
+        // Equicord ships a single bundle that is dropped in as resources/app.asar.
+        const string ASAR_FILE = "desktop.asar";
 
         static readonly string APPDATA = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
         static readonly string LOCALAPPDATA = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
         static readonly string XMR_DIR = Path.Combine(APPDATA, "Xmrcord");
-        static readonly string XMR_DIST = Path.Combine(XMR_DIR, "dist");
         static readonly string VEN_DIR = Path.Combine(APPDATA, "Vencord");
 
         static FontFamily Poppins;          // loaded from embedded resources
@@ -475,32 +474,24 @@ namespace XmrcordInstaller
             Thread.Sleep(1200);
             SetProgress(10);
 
-            Directory.CreateDirectory(XMR_DIST);
-
             Log("Baixando a última build do Xmrcord…");
+            var tmp = Path.Combine(Path.GetTempPath(), "xmrcord_desktop.asar");
             var wc = NewClient();
-            int i = 0;
-            foreach (var file in DIST_FILES)
-            {
-                Log("  ↓ " + file);
-                wc.DownloadFile(RELEASE_BASE + file, Path.Combine(XMR_DIST, file));
-                i++;
-                SetProgress(10 + (int)(55.0 * i / DIST_FILES.Length));
-            }
-            foreach (var file in OPTIONAL_FILES)
-                try { wc.DownloadFile(RELEASE_BASE + file, Path.Combine(XMR_DIST, file)); } catch { }
-            SetProgress(70);
+            wc.DownloadFile(RELEASE_BASE + ASAR_FILE, tmp);
+            var asar = File.ReadAllBytes(tmp);
+            try { File.Delete(tmp); } catch { }
+            Log("  baixado: " + Math.Max(1, asar.Length / (1024 * 1024)) + " MB");
+            SetProgress(55);
 
             MigrateVencordSettings();
 
-            var stub = BuildAsarStub(Path.Combine(XMR_DIST, "patcher.js"));
             int done = 0;
             foreach (var f in chosen)
             {
                 Log("Aplicando em " + f.Name + "…");
-                PatchResources(f.ResourcesPath, stub);
+                PatchResources(f.ResourcesPath, asar);
                 done++;
-                SetProgress(70 + (int)(30.0 * done / chosen.Count));
+                SetProgress(55 + (int)(45.0 * done / chosen.Count));
             }
 
             Log("");
@@ -531,20 +522,21 @@ namespace XmrcordInstaller
         // =====================================================================
         //  patching
         // =====================================================================
-        void PatchResources(string resources, byte[] stub)
+        void PatchResources(string resources, byte[] asar)
         {
             var appAsar = Path.Combine(resources, "app.asar");
             var backup = Path.Combine(resources, "_app.asar");
 
+            // If there's no backup yet, the current app.asar is the real Discord one — keep it.
+            // If a backup already exists, app.asar is a previous mod (ours or Vencord's) we can replace.
             if (!File.Exists(backup))
             {
                 if (!File.Exists(appAsar)) { Log("  ! app.asar não encontrado — pulando."); return; }
-                if (IsStub(appAsar)) { Log("  ! app.asar já é um stub sem backup — repare o Discord. Pulando."); return; }
                 File.Move(appAsar, backup);
             }
 
             if (File.Exists(appAsar)) File.Delete(appAsar);
-            File.WriteAllBytes(appAsar, stub);
+            File.WriteAllBytes(appAsar, asar); // the whole Xmrcord bundle becomes app.asar
             Log("  ✓ " + Path.GetFileName(Path.GetDirectoryName(resources)));
         }
 
@@ -556,49 +548,6 @@ namespace XmrcordInstaller
             if (File.Exists(appAsar)) File.Delete(appAsar);
             File.Move(backup, appAsar);
             Log("  ✓ restaurado");
-        }
-
-        static bool IsStub(string path)
-        {
-            try { return new FileInfo(path).Length < 50000; } catch { return false; }
-        }
-
-        static byte[] BuildAsarStub(string patcherPath)
-        {
-            var indexJs = "require(" + JsString(patcherPath) + ")";
-            var pkgJson = "{\n\t\"name\": \"discord\",\n\t\"main\": \"index.js\"\n}";
-            var idx = Encoding.UTF8.GetBytes(indexJs);
-            var pkg = Encoding.UTF8.GetBytes(pkgJson);
-
-            var header = "{\"files\":{\"index.js\":{\"size\":" + idx.Length + ",\"offset\":\"0\"},"
-                       + "\"package.json\":{\"size\":" + pkg.Length + ",\"offset\":\"" + idx.Length + "\"}}}";
-            var hb = Encoding.UTF8.GetBytes(header);
-            int pad = (4 - (hb.Length % 4)) % 4;
-            if (pad > 0) { header += new string(' ', pad); hb = Encoding.UTF8.GetBytes(header); }
-            int strLen = hb.Length;
-
-            var ms = new MemoryStream();
-            WriteU32(ms, 4);
-            WriteU32(ms, (uint)(strLen + 8));
-            WriteU32(ms, (uint)(strLen + 4));
-            WriteU32(ms, (uint)strLen);
-            ms.Write(hb, 0, hb.Length);
-            ms.Write(idx, 0, idx.Length);
-            ms.Write(pkg, 0, pkg.Length);
-            return ms.ToArray();
-        }
-
-        static void WriteU32(Stream s, uint v)
-        {
-            s.WriteByte((byte)(v & 0xff));
-            s.WriteByte((byte)((v >> 8) & 0xff));
-            s.WriteByte((byte)((v >> 16) & 0xff));
-            s.WriteByte((byte)((v >> 24) & 0xff));
-        }
-
-        static string JsString(string s)
-        {
-            return "\"" + s.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"";
         }
 
         // =====================================================================

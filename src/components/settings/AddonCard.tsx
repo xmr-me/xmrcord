@@ -18,10 +18,11 @@
 
 import "./AddonCard.css";
 
-import { AddonBadge } from "@components/settings/PluginBadge";
+import { Badge } from "@components/Badge";
+import { BaseText } from "@components/BaseText";
 import { Switch } from "@components/Switch";
 import { classNameFactory } from "@utils/css";
-import { Text, useRef } from "@webpack/common";
+import { Tooltip, useRef } from "@webpack/common";
 import type { MouseEventHandler, ReactNode } from "react";
 
 const cl = classNameFactory("vc-addon-");
@@ -33,6 +34,8 @@ interface Props {
     setEnabled: (enabled: boolean) => void;
     disabled?: boolean;
     isNew?: boolean;
+    sourceBadge?: ReactNode;
+    tooltip?: string;
     onMouseEnter?: MouseEventHandler<HTMLDivElement>;
     onMouseLeave?: MouseEventHandler<HTMLDivElement>;
 
@@ -41,7 +44,7 @@ interface Props {
     author?: ReactNode;
 }
 
-export function AddonCard({ disabled, isNew, name, infoButton, footer, author, enabled, setEnabled, description, onMouseEnter, onMouseLeave }: Props) {
+export function AddonCard({ disabled, isNew, sourceBadge, tooltip, name, infoButton, footer, author, enabled, setEnabled, description, onMouseEnter, onMouseLeave }: Props) {
     const titleRef = useRef<HTMLDivElement>(null);
     const titleContainerRef = useRef<HTMLDivElement>(null);
 
@@ -53,7 +56,7 @@ export function AddonCard({ disabled, isNew, name, infoButton, footer, author, e
         >
             <div className={cl("header")}>
                 <div className={cl("name-author")}>
-                    <Text variant="text-md/bold" className={cl("name")}>
+                    <BaseText size="md" weight="bold" className={cl("name")}>
                         <div ref={titleContainerRef} className={cl("title-container")}>
                             <div
                                 ref={titleRef}
@@ -69,15 +72,27 @@ export function AddonCard({ disabled, isNew, name, infoButton, footer, author, e
                                 {name}
                             </div>
                         </div>
-                        {isNew && <AddonBadge text="NEW" color="#ED4245" />}
-                    </Text>
+                        {isNew && <Badge text="NEW" variant="danger" />}
+                    </BaseText>
 
                     {!!author && (
-                        <Text variant="text-md/normal" className={cl("author")}>
+                        <BaseText size="md" color="text-subtle" className={cl("author")}>
                             {author}
-                        </Text>
+                        </BaseText>
                     )}
                 </div>
+
+                <Tooltip text={tooltip}>
+                    {({ onMouseEnter, onMouseLeave }) => (
+                        <div
+                            className={cl("source")}
+                            onMouseEnter={onMouseEnter}
+                            onMouseLeave={onMouseLeave}
+                        >
+                            {sourceBadge}
+                        </div>
+                    )}
+                </Tooltip>
 
                 {infoButton}
 
@@ -88,9 +103,15 @@ export function AddonCard({ disabled, isNew, name, infoButton, footer, author, e
                 />
             </div>
 
-            <Text className={cl("note")} variant="text-sm/normal">{description}</Text>
+            <div
+                className={cl("note")}
+                style={{ lineHeight: "1.25em", fontSize: "small" }}
+                title={description ? description.toString() : ""}
+            >
+                {description}
+            </div>
 
-            {footer}
+            {footer && <div className={cl("footer")}>{footer}</div>}
         </div>
     );
 }

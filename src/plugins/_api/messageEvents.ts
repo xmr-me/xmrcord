@@ -37,10 +37,9 @@ export default definePlugin({
         {
             find: ".handleSendMessage,onResize:",
             replacement: {
-                // TODO: simplify once Discord decides on if this .then() callback should be async or not
-                match: /(?<=channel:\i\}\)\.then\()(?:async )?(\i=>.+?let (\i)=\i\.\i\.parse\((\i),.+?\.getSendMessageOptions\(\{.+?\}\)?;)(?=.+?(\i)\.flags=)(?<=\)\(({.+?})\)\.then.+?)/,
-                replace: (m, restCode, parsedMessage, channel, options, props) => "async " + restCode +
-                    `if(await Vencord.Api.MessageEvents._handlePreSend(${channel}.id,${parsedMessage},${options},${props}))` +
+                match: /(?<=channel:\i\}\)\.then\()(?:async )?(\i=>.+?let (\i)=\i\.\i\.parse\((\i),.+?\.getSendMessageOptions\((\{.+?\})\),.{0,100}?\};)(?=.+?(\i)\.flags=)(?<=\)\(({.+?})\)\.then.+?)/,
+                replace: (m, restCode, parsedMessage, channel, contentOptions, options, props) => "async " + restCode +
+                    `if(await Vencord.Api.MessageEvents._handlePreSend(${channel}.id,${parsedMessage},${options},${props},${contentOptions}))` +
                     "return{shouldClear:false,shouldRefocus:true};"
             }
         },

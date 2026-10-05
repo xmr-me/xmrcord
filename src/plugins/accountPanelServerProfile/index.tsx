@@ -4,14 +4,16 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+import { isPluginEnabled } from "@api/PluginManager";
 import { definePluginSettings } from "@api/Settings";
 import ErrorBoundary from "@components/ErrorBoundary";
+import alwaysExpandProfiles from "@equicordplugins/alwaysExpandProfiles";
 import { Devs } from "@utils/constants";
-import { getCurrentChannel } from "@utils/discord";
+import { fetchUserProfile, getCurrentChannel, openUserProfile } from "@utils/discord";
 import definePlugin, { OptionType } from "@utils/types";
 import { User } from "@vencord/discord-types";
 import { findComponentByCodeLazy } from "@webpack";
-import { ContextMenuApi, Menu } from "@webpack/common";
+import { ContextMenuApi, Menu, useEffect, UserStore } from "@webpack/common";
 
 interface UserProfileProps {
     popoutProps: Record<string, any>;
@@ -20,7 +22,6 @@ interface UserProfileProps {
 }
 
 const UserProfile = findComponentByCodeLazy(".isNonUserBot()?", ",onClickContainer:");
-
 let openAlternatePopout = false;
 let accountPanelRef: React.RefObject<HTMLDivElement | null> = { current: null };
 
@@ -36,7 +37,13 @@ const AccountPanelContextMenu = ErrorBoundary.wrap(() => {
                 id="vc-ap-view-alternate-popout"
                 label={prioritizeServerProfile ? "View Account Profile" : "View Server Profile"}
                 disabled={getCurrentChannel()?.getGuildId() == null}
-                action={e => {
+                action={async e => {
+                    if (isPluginEnabled(alwaysExpandProfiles.name)) {
+                        const user = await fetchUserProfile(UserStore.getCurrentUser().id, {
+                            guild_id: prioritizeServerProfile ? undefined : getCurrentChannel()?.getGuildId()
+                        }, false);
+                        return openUserProfile(user!.userId);
+                    }
                     openAlternatePopout = true;
                     accountPanelRef.current?.click();
                 }}
@@ -117,6 +124,10 @@ export default definePlugin({
             return originalRenderPopout();
         }
 
+        if (isPluginEnabled(alwaysExpandProfiles.name)) {
+            return <ServerProfileLauncher popoutProps={popoutProps} userId={currentUser.id} guildId={currentChannel.getGuildId()!} />;
+        }
+
         return (
             <UserProfile
                 {...popoutProps}
@@ -128,3 +139,14 @@ export default definePlugin({
         );
     }, { noop: true })
 });
+
+function ServerProfileLauncher({ popoutProps, userId, guildId }: { popoutProps: Record<string, any>; userId: string; guildId: string; }) {
+    useEffect(() => {
+        popoutProps.closePopout?.();
+        popoutProps.onRequestClose?.();
+        fetchUserProfile(userId, { guild_id: guildId }, false).then(user => {
+            if (user) openUserProfile(user.userId);
+        });
+    }, []);
+    return null;
+}

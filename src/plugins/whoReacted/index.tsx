@@ -177,7 +177,10 @@ export default definePlugin({
         let users = Array.from(reactionMap, ([id]) => UserStore.getUser(id)).filter(Boolean);
 
         if (isPluginEnabled(NoBlockedMessagesPlugin.name))
-            users = users.filter(user => !NoBlockedMessagesPlugin.shouldIgnoreUser(user.id));
+            users = users.filter(user => {
+                const { blocked, ignored } = NoBlockedMessagesPlugin.getRelationshipStatus(user);
+                return !(blocked || (ignored && NoBlockedMessagesPlugin.settings.store.alsoHideIgnoredUsers));
+            });
 
         return users.length === 0
             ? null

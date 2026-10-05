@@ -18,30 +18,15 @@
 
 import { isPluginEnabled } from "@api/PluginManager";
 import { definePluginSettings } from "@api/Settings";
+import { UserAreaRenderProps } from "@api/UserArea";
 import { getUserSettingLazy } from "@api/UserSettings";
-import ErrorBoundary from "@components/ErrorBoundary";
-import VencordToolboxPlugin from "@plugins/vencordToolbox";
+import equicordToolbox from "@equicordplugins/equicordToolbox";
 import { Devs } from "@utils/constants";
 import definePlugin, { OptionType } from "@utils/types";
-import { FluxStore } from "@vencord/discord-types";
-import { findByPropsLazy, findComponentByCodeLazy, findStoreLazy } from "@webpack";
-import { Menu, Popout, useRef, useState, useStateFromStores } from "@webpack/common";
-
-import managedStyle from "./style.css?managed";
-
-interface ConnectedAccount {
-    id: string;
-    type: string;
-    revoked: boolean;
-    showActivity: boolean;
-}
-
-interface ConnectedAccountsStore extends FluxStore {
-    getAccounts(): ConnectedAccount[];
-}
+import { findByPropsLazy, findComponentByCodeLazy } from "@webpack";
+import { ConnectedAccountsStore, Menu, Popout, useRef, useState, useStateFromStores } from "@webpack/common";
 
 const Button = findComponentByCodeLazy(".GREEN,positionKeyStemOverride:");
-const ConnectedAccountsStore = findStoreLazy("ConnectedAccountsStore") as ConnectedAccountsStore;
 const ConnectedAccountActions = findByPropsLazy("setShowActivity");
 
 const ShowCurrentGame = getUserSettingLazy<boolean>("status", "showCurrentGame")!;
@@ -57,15 +42,15 @@ const settings = definePluginSettings({
         description: "Where to show the game activity toggle button",
         options: [
             { label: "Next to Mute/Deafen", value: "PANEL", default: true },
-            { label: "Vencord Toolbox", value: "TOOLBOX" }
+            { label: "Equicord Toolbox", value: "TOOLBOX" }
         ],
         get hidden() {
-            return !isPluginEnabled(VencordToolboxPlugin.name);
+            return !isPluginEnabled(equicordToolbox.name);
         }
     }
 });
 
-function Icon() {
+function Icon({ className }: { className?: string; }) {
     const { oldIcon } = settings.use(["oldIcon"]);
     const showCurrentGame = ShowCurrentGame.useSetting();
 
@@ -78,7 +63,7 @@ function Icon() {
         : "M23.27 4.54 19.46.73 .73 19.46 4.54 23.27 23.27 4.54Z";
 
     return (
-        <svg width="20" height="20" viewBox="0 0 24 24">
+        <svg className={className} width="20" height="20" viewBox="0 0 24 24">
             <path
                 fill={!showCurrentGame && !oldIcon ? "var(--status-danger)" : "currentColor"}
                 mask={!showCurrentGame ? "url(#gameActivityMask)" : void 0}
@@ -95,18 +80,18 @@ function Icon() {
     );
 }
 
-function GameActivityToggleButton(props: { nameplate?: any; }) {
+function GameActivityToggleButton(props: UserAreaRenderProps) {
     const { location } = settings.use(["location"]);
     const showCurrentGame = ShowCurrentGame.useSetting();
 
     const connectedAccounts = useStateFromStores([ConnectedAccountsStore], () => ConnectedAccountsStore.getAccounts());
     const spotifyAccounts = connectedAccounts.filter(account => account.type === "spotify" && !account.revoked);
-    // The update is an API request which takes a bit to update the store, so we have to use our own state to reflect the change immediately
-    const [shareSpotifyActivity, setShareSpotifyActivity] = useState(spotifyAccounts[0]?.showActivity ?? false);
+    // The update is an API request which takes a bit to update the store, so keep local overrides to reflect changes immediately
+    const [spotifyActivityOverrides, setSpotifyActivityOverrides] = useState<Record<string, boolean>>({});
 
     const buttonRef = useRef<HTMLButtonElement | null>(null);
 
-    if (location !== "PANEL" && isPluginEnabled(VencordToolboxPlugin.name)) return null;
+    if (location !== "PANEL" && isPluginEnabled(equicordToolbox.name)) return null;
 
     const buttonProps = {
         tooltipText: showCurrentGame ? "Disable Game Activity" : "Enable Game Activity",
@@ -118,11 +103,8 @@ function GameActivityToggleButton(props: { nameplate?: any; }) {
         onClick: () => ShowCurrentGame.updateSetting(old => !old)
     };
 
-    // Only show switch if there's exactly one Spotify account connected. Otherwise it may lead to confusion
-    if (spotifyAccounts.length !== 1)
+    if (spotifyAccounts.length === 0)
         return <Button {...buttonProps} />;
-
-    const spotifyAccount = spotifyAccounts[0];
 
     return (
         <Popout
@@ -131,15 +113,22 @@ function GameActivityToggleButton(props: { nameplate?: any; }) {
             targetElementRef={buttonRef}
             renderPopout={({ closePopout }) => (
                 <Menu.Menu navId="vc-gameActivityToggle-menu" onClose={closePopout}>
-                    <Menu.MenuCheckboxItem
-                        id="vc-toggle-spotify"
-                        label="Share Spotify Activity"
-                        checked={shareSpotifyActivity}
-                        action={async () => {
-                            ConnectedAccountActions.setShowActivity(spotifyAccount.type, spotifyAccount.id, !shareSpotifyActivity);
-                            setShareSpotifyActivity(!shareSpotifyActivity);
-                        }}
-                    />
+                    {spotifyAccounts.map(account => {
+                        const checked = spotifyActivityOverrides[account.id] ?? account.showActivity;
+
+                        return (
+                            <Menu.MenuCheckboxItem
+                                key={account.id}
+                                id={`vc-toggle-spotify-${account.id}`}
+                                label={spotifyAccounts.length === 1 ? "Share Spotify Activity" : `Share Spotify Activity (${account.name})`}
+                                checked={checked}
+                                action={() => {
+                                    ConnectedAccountActions.setShowActivity(account.type, account.id, !checked);
+                                    setSpotifyActivityOverrides(current => ({ ...current, [account.id]: !checked }));
+                                }}
+                            />
+                        );
+                    })}
                 </Menu.Menu>
             )}
         >
@@ -159,20 +148,13 @@ export default definePlugin({
     description: "Adds a button next to the mic and deafen button to toggle game activity. Right click it to toggle Spotify activity.",
     tags: ["Activity", "Shortcuts"],
     authors: [Devs.Nuckyz, Devs.RuukuLada],
-    dependencies: ["UserSettingsAPI"],
+    dependencies: ["UserSettingsAPI", "UserAreaAPI"],
     settings,
 
-    managedStyle,
-
-    patches: [
-        {
-            find: "#{intl::USER_PROFILE_ACCOUNT_POPOUT_BUTTON_A11Y_LABEL}",
-            replacement: {
-                match: /children:\[(?=.{0,25}?accountContainerRef)/,
-                replace: "children:[$self.GameActivityToggleButton(arguments[0]),"
-            }
-        }
-    ],
+    userAreaButton: {
+        icon: Icon,
+        render: GameActivityToggleButton
+    },
 
     toolboxActions() {
         const { location } = settings.use(["location"]);
@@ -189,6 +171,4 @@ export default definePlugin({
             />
         );
     },
-
-    GameActivityToggleButton: ErrorBoundary.wrap(GameActivityToggleButton, { noop: true }),
 });

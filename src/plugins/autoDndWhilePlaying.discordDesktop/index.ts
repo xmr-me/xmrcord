@@ -56,7 +56,6 @@ async function setStatus(status: string) {
     await StatusSettings.updateSetting(status);
 }
 
-
 export default definePlugin({
     name: "AutoDNDWhilePlaying",
     description: "Automatically updates your online status (online, idle, dnd) when launching games",

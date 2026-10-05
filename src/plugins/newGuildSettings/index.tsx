@@ -23,10 +23,11 @@ import {
 import { definePluginSettings } from "@api/Settings";
 import { CogWheel } from "@components/Icons";
 import { Devs } from "@utils/constants";
+import { sleep } from "@utils/misc";
 import definePlugin, { OptionType } from "@utils/types";
 import { Guild } from "@vencord/discord-types";
 import { findByCodeLazy, findByPropsLazy, mapMangledModuleLazy } from "@webpack";
-import { Menu, UserStore } from "@webpack/common";
+import { ChannelStore, CollapsedVoiceChannelStore, Menu, SortedGuildStore, UserStore } from "@webpack/common";
 
 const { updateGuildNotificationSettings } = findByPropsLazy("updateGuildNotificationSettings");
 const { toggleShowAllChannels } = mapMangledModuleLazy(".onboardExistingMember(", {
@@ -36,6 +37,7 @@ const { toggleShowAllChannels } = mapMangledModuleLazy(".onboardExistingMember("
     }
 });
 const isOptInEnabledForGuild = findByCodeLazy(".COMMUNITY)||", ".isOptInEnabled(");
+const collapsedChannels = findByPropsLazy("toggleCollapseGuild");
 
 const settings = definePluginSettings({
     guild: {
@@ -77,42 +79,97 @@ const settings = definePluginSettings({
         description: "Show all channels automatically",
         type: OptionType.BOOLEAN,
         default: true
+    },
+    mobilePush: {
+        description: "Mute Mobile Push Notifications automatically",
+        type: OptionType.BOOLEAN,
+        default: true
+    },
+    voiceChannels: {
+        description: "Hide names in Voice channels automatically",
+        type: OptionType.BOOLEAN,
+        default: false
     }
 });
 
-const makeContextMenuPatch: (shouldAddIcon: boolean) => NavContextMenuPatchCallback = (shouldAddIcon: boolean) => (children, { guild }: { guild: Guild, onClose(): void; }) => {
-    if (!guild) return;
+const makeContextMenuPatch: (shouldAddIcon: boolean) => NavContextMenuPatchCallback = (shouldAddIcon: boolean) => (children, props: { guild?: Guild; folderId?: number; onClose(): void; }) => {
+    const { guild, folderId } = props;
 
-    const group = findGroupChildrenByChildId("privacy", children);
-    group?.push(
-        <Menu.MenuItem
-            label="Apply NewGuildSettings"
-            id="vc-newguildsettings-apply"
-            icon={shouldAddIcon ? CogWheel : void 0}
-            leadingAccessory={shouldAddIcon ? { type: "icon", icon: CogWheel } : void 0}
-            action={() => applyDefaultSettings(guild.id)}
-        />
-    );
+    if (guild) {
+        const group = findGroupChildrenByChildId("privacy", children);
+        if (!group) return;
+
+        group.push(
+            <Menu.MenuItem
+                label="Apply NewGuildSettings"
+                id="vc-newguildsettings-apply"
+                icon={shouldAddIcon ? CogWheel : void 0}
+                leadingAccessory={shouldAddIcon ? { type: "icon", icon: CogWheel } : void 0}
+                action={() => applyDefaultSettings(guild.id)}
+            />
+        );
+    }
+
+    if (folderId) {
+        const folder = SortedGuildStore.getGuildFolderById(folderId);
+
+        children.push(
+            <Menu.MenuItem
+                label="Apply NewGuildSettings to Folder"
+                id="vc-newguildsettings-apply-folder"
+                icon={shouldAddIcon ? CogWheel : void 0}
+                leadingAccessory={shouldAddIcon ? { type: "icon", icon: CogWheel } : void 0}
+                action={async () => {
+                    for (const guildId of folder.guildIds) {
+                        applyDefaultSettings(guildId);
+                        // you will be rate limited really fast so hopefully this avoids that
+                        await sleep(250);
+                    }
+                }}
+            />
+        );
+    }
 };
+
+function applyVoiceNameHidingToGuild(guildId: string) {
+    if (!settings.store.voiceChannels) return;
+
+    try {
+        ChannelStore.getChannelIds(guildId).filter(channelId => {
+            const channel = ChannelStore.getChannel(channelId);
+            return channel.isGuildVocal() && !CollapsedVoiceChannelStore.isCollapsed(channelId);
+        }).forEach(id => collapsedChannels.update(id));
+    } catch (error) {
+        console.warn("[NewGuildSettings] Error applying voice name hiding:", error);
+    }
+}
 
 function applyDefaultSettings(guildId: string | null) {
     if (guildId === "@me" || guildId === "null" || guildId == null) return;
+
     updateGuildNotificationSettings(guildId,
         {
             muted: settings.store.guild,
+            mobile_push: !settings.store.mobilePush,
             suppress_everyone: settings.store.everyone,
             suppress_roles: settings.store.role,
             mute_scheduled_events: settings.store.events,
             notify_highlights: settings.store.highlights ? 1 : 0
         });
+
     if (settings.store.messages !== 3) {
         updateGuildNotificationSettings(guildId,
             {
                 message_notifications: settings.store.messages,
             });
     }
+
     if (settings.store.showAllChannels && isOptInEnabledForGuild(guildId)) {
         toggleShowAllChannels(guildId);
+    }
+
+    if (settings.store.voiceChannels) {
+        applyVoiceNameHidingToGuild(guildId);
     }
 }
 
@@ -122,6 +179,7 @@ export default definePlugin({
     tags: ["Servers", "Customisation"],
     searchTerms: ["MuteNewGuild", "mute", "server"],
     authors: [Devs.Glitch, Devs.Nuckyz, Devs.carince, Devs.Mopi, Devs.GabiRP],
+    isModified: true,
     contextMenus: {
         "guild-context": makeContextMenuPatch(false),
         "guild-header-popout": makeContextMenuPatch(true)

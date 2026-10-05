@@ -20,9 +20,12 @@
 import "./styles.css";
 
 import { definePluginSettings } from "@api/Settings";
+import { BaseText } from "@components/BaseText";
 import { Divider } from "@components/Divider";
 import ErrorBoundary from "@components/ErrorBoundary";
 import { Flex } from "@components/Flex";
+import { HeadingSecondary } from "@components/Heading";
+import { Paragraph } from "@components/Paragraph";
 import { Devs } from "@utils/constants";
 import { copyWithToast, fetchUserProfile } from "@utils/discord";
 import { Margins } from "@utils/margins";
@@ -31,7 +34,7 @@ import { useAwaiter } from "@utils/react";
 import definePlugin, { OptionType } from "@utils/types";
 import { User, UserProfile } from "@vencord/discord-types";
 import { findComponentByCodeLazy } from "@webpack";
-import { Button, ColorPicker, Forms, React, Text, UserProfileStore, UserStore, useState } from "@webpack/common";
+import { Button, ColorPicker, Forms, React, UserProfileStore, UserStore, useState } from "@webpack/common";
 import virtualMerge from "virtual-merge";
 
 interface Colors {
@@ -112,12 +115,12 @@ function SettingsAboutComponent() {
 
     return (
         <section>
-            <Forms.FormTitle tag="h3">Usage</Forms.FormTitle>
-            <Forms.FormText>
+            <HeadingSecondary>Usage</HeadingSecondary>
+            <Paragraph>
                 After enabling this plugin, you will see custom colors in
                 the profiles of other people using compatible plugins.{" "}
-            </Forms.FormText>
-            <Forms.FormText className={Margins.top8}>
+            </Paragraph>
+            <Paragraph className={Margins.top8}>
                 <strong>To set your own profile theme colors:</strong>
                 <ul>
                     <li>&mdash; use the color pickers below to choose your colors</li>
@@ -132,12 +135,12 @@ function SettingsAboutComponent() {
                     <ColorPicker
                         color={color1}
                         label={
-                            <Text
-                                variant={"text-xs/normal"}
+                            <BaseText
+                                size="xs"
                                 style={{ marginTop: "4px" }}
                             >
                                 Primary
-                            </Text>
+                            </BaseText>
                         }
                         onChange={(color: number) => {
                             setColor1(color);
@@ -146,12 +149,12 @@ function SettingsAboutComponent() {
                     <ColorPicker
                         color={color2}
                         label={
-                            <Text
-                                variant={"text-xs/normal"}
+                            <BaseText
+                                size="xs"
                                 style={{ marginTop: "4px" }}
                             >
                                 Accent
-                            </Text>
+                            </BaseText>
                         }
                         onChange={(color: number) => {
                             setColor2(color);
@@ -172,7 +175,7 @@ function SettingsAboutComponent() {
                 <Divider
                     className={classes(Margins.top8, Margins.bottom8)}
                 />
-                <Forms.FormTitle tag="h3">Preview</Forms.FormTitle>
+                <HeadingSecondary>Preview</HeadingSecondary>
                 <div className="vc-fpt-preview">
                     <ProfileModal
                         user={UserStore.getCurrentUser()}
@@ -185,8 +188,9 @@ function SettingsAboutComponent() {
                         isTryItOut={true}
                     />
                 </div>
-            </Forms.FormText>
-        </section>);
+            </Paragraph>
+        </section>
+    );
 }
 
 export default definePlugin({
@@ -208,6 +212,16 @@ export default definePlugin({
                 match: /#{intl::USER_SETTINGS_RESET_PROFILE_THEME}\).+?}\)(?=\])(?<=color:(\i),.{0,500}?color:(\i),.{0,500}?)/,
                 replace: "$&,$self.addCopy3y3Button({primary:$1,accent:$2})"
             }
+        },
+        // 2026-03-wysiwyg-user-profile-editing
+        {
+            find: '("UserProfileModalV2EditingPanel")',
+            replacement: [
+                {
+                    match: /disabled:\i\|\|\i\}\)/,
+                    replace: "$&,$self.addCopy3y3Button()"
+                }
+            ]
         }
     ],
 
@@ -236,8 +250,8 @@ export default definePlugin({
             }}
             color={Button.Colors.PRIMARY}
             size={Button.Sizes.XLARGE}
-            className={Margins.left16}
-        >Copy 3y3
-        </Button >;
+        >
+            Copy 3y3
+        </Button>;
     }, { noop: true }),
 });

@@ -9,15 +9,16 @@ import "./ui/styles.css";
 import ErrorBoundary from "@components/ErrorBoundary";
 import { Devs } from "@utils/constants";
 import definePlugin from "@utils/types";
+import { User } from "@vencord/discord-types";
 import { UserStore } from "@webpack/common";
 
-import { CDN_URL, RAW_SKU_ID, SKU_ID } from "./lib/constants";
+import { CDN_URL, RAW_SKU_ID, setBaseUrl, SKU_ID } from "./lib/constants";
 import { useAuthorizationStore } from "./lib/stores/AuthorizationStore";
 import { useCurrentUserDecorationsStore } from "./lib/stores/CurrentUserDecorationsStore";
 import { useUserDecorAvatarDecoration, useUsersDecorationsStore } from "./lib/stores/UsersDecorationsStore";
 import { settings } from "./settings";
 import { setAvatarDecorationModalPreview, setDecorationGridDecoration, setDecorationGridItem } from "./ui/components";
-import DecorSection from "./ui/components/DecorSection";
+import DecorSection, { DecorSectionProps } from "./ui/components/DecorSection";
 
 export interface AvatarDecoration {
     asset: string;
@@ -29,13 +30,14 @@ export default definePlugin({
     description: "Create and use your own custom avatar decorations, or pick your favorite from the presets.",
     tags: ["Appearance", "Customisation"],
     authors: [Devs.FieryFlames],
+    isModified: true,
     patches: [
         // Patch MediaResolver to return correct URL for Decor avatar decorations
         {
             find: "getAvatarDecorationURL:",
             replacement: {
-                match: /(?<=function \i\(\i\){)(?=let{avatarDecoration)/,
-                replace: "const vcDecorDecoration=$self.getDecorAvatarDecorationURL(arguments[0]);if(vcDecorDecoration)return vcDecorDecoration;"
+                match: /(?<=function \i\((\i)\){)(?=.{0,20}let{avatarDecoration)/,
+                replace: "const vcDecorDecoration=$self.getDecorAvatarDecorationURL($1);if(vcDecorDecoration)return vcDecorDecoration;"
             }
         },
         // Patch profile customization settings to include Decor section
@@ -116,6 +118,23 @@ export default definePlugin({
                     replace: "$self.AvatarDecorationModalPreview=$&"
                 }
             ]
+        },
+        // 2026-03-wysiwyg-user-profile-editing
+        {
+            find: '("UserProfileModalV2EditingPanel")',
+            replacement: [
+                {
+                    match: /disabled:(\i\|\|\i),avatarErrorMessage:\i,avatarDecorationErrorMessage:\i\}\),/,
+                    replace: "$&$self.ExperimentDecorSection({disabled:$1}),"
+                }
+            ]
+        },
+        {
+            find: "isPreviewingMainProfileFallback:",
+            replacement: {
+                match: /(?<=avatarDecorationSrc:(\i),.{0,150}userId:(\i)\.id,.{0,100}avatarDecorationOverride:(\i\?\i:\i\?\i:void 0),animateOnHover:!\i\}\))/,
+                replace: ",vcDecorTileDecoration=($1=$self.useDiscordTileDecorationSrc($2,$1,$3))"
+            }
         }
     ],
     settings,
@@ -148,7 +167,13 @@ export default definePlugin({
 
     useUserDecorAvatarDecoration,
 
+    useDiscordTileDecorationSrc(user: User, src: string | null, override: unknown) {
+        const hasDecorDecoration = useUsersDecorationsStore(state => state.getAsset(user.id) != null);
+        return override === undefined && hasDecorDecoration ? null : src;
+    },
+
     async start() {
+        await setBaseUrl(settings.store.baseUrl);
         useUsersDecorationsStore.getState().fetch(UserStore.getCurrentUser().id, true);
     },
 
@@ -164,5 +189,9 @@ export default definePlugin({
         }
     },
 
-    DecorSection: ErrorBoundary.wrap(DecorSection, { noop: true })
+    DecorSection: ErrorBoundary.wrap(DecorSection, { noop: true }),
+    ExperimentDecorSection: ErrorBoundary.wrap(
+        (props: DecorSectionProps) => <DecorSection {...props} useNewSection />,
+        { noop: true }
+    ),
 });

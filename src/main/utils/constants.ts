@@ -17,18 +17,23 @@
 */
 
 import { app } from "electron";
+import { copyFileSync, existsSync, readFileSync, writeFileSync } from "fs";
 import { join } from "path";
 
-export const DATA_DIR = process.env.VENCORD_USER_DATA_DIR ?? (
+const suffix = IS_DEV ? "dev" : "";
+
+export const DATA_DIR = process.env.EQUICORD_USER_DATA_DIR ?? (
     process.env.DISCORD_USER_DATA_DIR
-        ? join(process.env.DISCORD_USER_DATA_DIR, "..", "XmrcordData")
-        : join(app.getPath("userData"), "..", "Xmrcord")
+        ? join(process.env.DISCORD_USER_DATA_DIR, "..", "XmrcordData", suffix)
+        : join(app.getPath("userData"), "..", "Xmrcord", suffix)
 );
+
 export const SETTINGS_DIR = join(DATA_DIR, "settings");
 export const THEMES_DIR = join(DATA_DIR, "themes");
 export const QUICK_CSS_PATH = join(SETTINGS_DIR, "quickCss.css");
 export const SETTINGS_FILE = join(SETTINGS_DIR, "settings.json");
 export const NATIVE_SETTINGS_FILE = join(SETTINGS_DIR, "native-settings.json");
+export const DEV_MIGRATED = join(SETTINGS_DIR, "migration");
 export const ALLOWED_PROTOCOLS = [
     "https:",
     "http:",
@@ -37,6 +42,34 @@ export const ALLOWED_PROTOCOLS = [
     "com.epicgames.launcher:",
     "tidal:",
     "itunes:",
+    "vrcx:",
+    "tg:",
 ];
 
 export const IS_VANILLA = /* @__PURE__ */ process.argv.includes("--vanilla");
+
+if (IS_DEV) {
+    const prodDir = join(DATA_DIR, "..");
+    const settings = join(prodDir, "settings", "settings.json");
+    const quickCss = join(prodDir, "settings", "quickCss.css");
+
+    let migrated = false;
+    if (existsSync(DEV_MIGRATED)) {
+        const content = readFileSync(DEV_MIGRATED, "utf-8");
+        migrated = content.includes("migrated");
+    }
+
+    if (!migrated) {
+        setTimeout(() => {
+            try {
+                if (existsSync(settings)) copyFileSync(settings, SETTINGS_FILE);
+                if (existsSync(quickCss)) copyFileSync(quickCss, QUICK_CSS_PATH);
+                writeFileSync(DEV_MIGRATED, "migrated");
+                app.relaunch();
+                app.exit(0);
+            } catch (err) {
+                console.error("[Xmrcord] Failed to copy prod data:", err);
+            }
+        }, 5000);
+    }
+}

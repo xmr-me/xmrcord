@@ -16,8 +16,10 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-import { definePluginSettings } from "@api/Settings";
+import { ApplicationCommandInputType, ApplicationCommandOptionType, findOption, sendBotMessage } from "@api/Commands";
+import { definePluginSettings, Settings } from "@api/Settings";
 import ErrorBoundary from "@components/ErrorBoundary";
+import { reverseExtensionMap } from "@equicordplugins/fixFileExtensions";
 import { Devs } from "@utils/constants";
 import definePlugin, { OptionType } from "@utils/types";
 import { CloudUpload } from "@vencord/discord-types";
@@ -30,16 +32,22 @@ const enum Methods {
     Random,
     Consistent,
     Timestamp,
+    Date
 }
 
 const ANONYMISE_UPLOAD_SYMBOL = Symbol("vcAnonymise");
-const tarExtMatcher = /\.tar\.\w+$/;
+export const tarExtMatcher = /\.tar\.\w+$/;
 
 const settings = definePluginSettings({
     anonymiseByDefault: {
         description: "Whether to anonymise file names by default",
         type: OptionType.BOOLEAN,
         default: true,
+    },
+    spoilerMessages: {
+        description: "Spoiler messages",
+        type: OptionType.BOOLEAN,
+        default: false,
     },
     method: {
         description: "Anonymising method",
@@ -48,6 +56,7 @@ const settings = definePluginSettings({
             { label: "Random Characters", value: Methods.Random, default: true },
             { label: "Consistent", value: Methods.Consistent },
             { label: "Timestamp", value: Methods.Timestamp },
+            { label: "Date", value: Methods.Date },
         ],
     },
     randomisedLength: {
@@ -60,20 +69,30 @@ const settings = definePluginSettings({
         type: OptionType.STRING,
         default: "image"
     },
+    dateFormat: {
+        description: "Date format (YYYY, MM, DD, HH, mm, ss, SSS are supported)",
+        type: OptionType.STRING,
+        default: "YYYY-MM-DD_HH-mm-ss-SSS"
+    }
 }, {
     randomisedLength: {
         disabled() { return this.store.method !== Methods.Random; },
     },
     consistent: {
         disabled() { return this.store.method !== Methods.Consistent; },
-    }
+    },
+    dateFormat: {
+        disabled() { return this.store.method !== Methods.Date; },
+    },
 });
 
 export default definePlugin({
     name: "AnonymiseFileNames",
     authors: [Devs.fawn],
     description: "Anonymise uploaded file names",
+    dependencies: ["CommandsAPI"],
     tags: ["Privacy", "Utility"],
+    isModified: true,
     settings,
 
     patches: [
@@ -117,30 +136,68 @@ export default definePlugin({
     }, { noop: true }),
 
     anonymise(upload: CloudUpload) {
-        if ((upload[ANONYMISE_UPLOAD_SYMBOL] ?? settings.store.anonymiseByDefault) === false) {
-            return;
-        }
-
         const originalFileName = upload.filename;
         const tarMatch = tarExtMatcher.exec(originalFileName);
         const extIdx = tarMatch?.index ?? originalFileName.lastIndexOf(".");
-        const ext = extIdx !== -1 ? originalFileName.slice(extIdx) : "";
+        let ext = extIdx !== -1 ? originalFileName.slice(extIdx) : "";
+        const addSpoilerPrefix = (str: string) => settings.store.spoilerMessages ? "SPOILER_" + str : str;
+
+        if (Settings.plugins.FixFileExtensions.enabled) {
+            ext = reverseExtensionMap[ext] || ext;
+        }
+
+        if ((upload[ANONYMISE_UPLOAD_SYMBOL] ?? settings.store.anonymiseByDefault) === false) return addSpoilerPrefix(originalFileName + ext);
 
         const newFilename = (() => {
             switch (settings.store.method) {
                 case Methods.Random:
                     const chars = "0123456789bdfhjkmnpqrstvwxz";
-                    return Array.from(
+                    const returnedName = Array.from(
                         { length: settings.store.randomisedLength },
                         () => chars[Math.floor(Math.random() * chars.length)]
                     ).join("") + ext;
+                    return addSpoilerPrefix(returnedName);
                 case Methods.Consistent:
-                    return settings.store.consistent + ext;
+                    return addSpoilerPrefix(settings.store.consistent + ext);
                 case Methods.Timestamp:
-                    return Date.now() + ext;
+                    return addSpoilerPrefix(Date.now().toString() + ext);
+                case Methods.Date:
+                    const now = new Date();
+                    const format = settings.store.dateFormat
+                        .replace(/YYYY/g, now.getFullYear().toString())
+                        .replace(/MM/g, (now.getMonth() + 1).toString().padStart(2, "0"))
+                        .replace(/DD/g, now.getDate().toString().padStart(2, "0"))
+                        .replace(/HH/g, now.getHours().toString().padStart(2, "0"))
+                        .replace(/mm/g, now.getMinutes().toString().padStart(2, "0"))
+                        .replace(/ss/g, now.getSeconds().toString().padStart(2, "0"))
+                        .replace(/SSS/g, now.getMilliseconds().toString().padStart(3, "0"));
+
+                    return format ? addSpoilerPrefix(format + ext) : addSpoilerPrefix(Date.now().toString() + ext);
             }
         })();
 
         upload.filename = newFilename;
-    }
+    },
+
+    commands: [
+        {
+            name: "Spoiler",
+            description: "Toggle your spoiler",
+            inputType: ApplicationCommandInputType.BUILT_IN,
+            options: [
+                {
+                    name: "value",
+                    description: "Toggle your Spoiler (default is toggle)",
+                    required: false,
+                    type: ApplicationCommandOptionType.BOOLEAN,
+                },
+            ],
+            execute: async (args, ctx) => {
+                settings.store.spoilerMessages = !!findOption(args, "value", !settings.store.spoilerMessages);
+                sendBotMessage(ctx.channel.id, {
+                    content: settings.store.spoilerMessages ? "Spoiler enabled!" : "Spoiler disabled!",
+                });
+            },
+        }
+    ],
 });
