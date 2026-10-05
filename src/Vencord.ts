@@ -31,6 +31,7 @@ export { PlainSettings, Settings };
 
 import { coreStyleRootNode, initStyles } from "@api/Styles";
 import { openSettingsTabModal, UpdaterTab } from "@components/settings";
+import { openUpdateModal } from "@components/XmrcordUpdateModal";
 import { debounce } from "@shared/debounce";
 import { IS_WINDOWS } from "@utils/constants";
 import { createAndAppendStyle } from "@utils/css";
@@ -43,7 +44,7 @@ import { initPluginManager, PMLogger, startAllPlugins } from "./api/PluginManage
 import { PlainSettings, Settings, SettingsStore } from "./api/Settings";
 import { areLocalSettingsDirty, getCloudSettings, getCloudSyncDirection, markLocalSettingsDirty, putCloudSettings, shouldCloudSync } from "./api/SettingsSync/cloudSync";
 import { relaunch } from "./utils/native";
-import { checkForUpdates, update, UpdateLogger } from "./utils/updater";
+import { changes, checkForUpdates, update, UpdateLogger } from "./utils/updater";
 import { onceReady } from "./webpack";
 import { patches } from "./webpack/patchWebpack";
 
@@ -124,7 +125,14 @@ async function runUpdateCheck() {
 
         if (Settings.autoUpdate) {
             await update();
-            if (Settings.autoUpdateNotification) {
+            // Xmrcord: always show a changelog modal (styled like the CL modal) after an
+            // auto-update, listing what changed. Falls back to a toast if there's no change list.
+            if (changes?.length) {
+                if (!notifiedForUpdatesThisSession) {
+                    notifiedForUpdatesThisSession = true;
+                    setTimeout(() => openUpdateModal(changes), 10_000);
+                }
+            } else if (Settings.autoUpdateNotification) {
                 notify({
                     title: "Xmrcord has been updated!",
                     body: "Click here to restart",
