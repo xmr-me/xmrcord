@@ -54,7 +54,7 @@ namespace XmrcordInstaller
         static readonly Brush BullGreen = Hex("#34d399");
 
         // ---- constants ----
-        const string RELEASE_BASE = "https://github.com/s0i4xxz/xmrcord/releases/latest/download/";
+        const string RELEASE_BASE = "https://github.com/xmr-me/xmrcord/releases/latest/download/";
         static readonly string[] DIST_FILES = { "patcher.js", "preload.js", "renderer.js", "renderer.css" };
         static readonly string[] OPTIONAL_FILES = { "patcher.js.LEGAL.txt", "renderer.js.LEGAL.txt" };
 

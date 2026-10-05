@@ -3,13 +3,13 @@
     "private": "true",
     "version": "1.15.9",
     "description": "Xmrcord — a Vencord-based Discord client mod",
-    "homepage": "https://github.com/s0i4xxz/xmrcord#readme",
+    "homepage": "https://github.com/xmr-me/xmrcord#readme",
     "bugs": {
-        "url": "https://github.com/s0i4xxz/xmrcord/issues"
+        "url": "https://github.com/xmr-me/xmrcord/issues"
     },
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/s0i4xxz/xmrcord.git"
+        "url": "git+https://github.com/xmr-me/xmrcord.git"
     },
     "license": "GPL-3.0-or-later",
     "author": "s0i4x",

@@ -8,7 +8,7 @@ compilador C# que já vem no Windows (.NET Framework 4.x), não precisa de Visua
 - Detecta **Discord Stable, PTB e Canary** instalados no usuário.
 - Para cada um escolhido: faz backup do `app.asar` original como `_app.asar` e grava um stub
   que carrega o Xmrcord de `%APPDATA%\Xmrcord\dist`.
-- Baixa a última build da [release `latest`](https://github.com/s0i4xxz/xmrcord/releases/latest).
+- Baixa a última build da [release `latest`](https://github.com/xmr-me/xmrcord/releases/latest).
 - Importa configurações de uma instalação antiga do Vencord, se existir.
 - **Desinstalar** restaura o `app.asar` original.
 

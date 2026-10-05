@@ -29,7 +29,7 @@ Xmrcord é o Vencord com:
 
 ## Instalar (para os amigos)
 
-1. Baixe o **`XmrcordInstaller.exe`** na [última release](https://github.com/s0i4xxz/xmrcord/releases/latest).
+1. Baixe o **`XmrcordInstaller.exe`** na [última release](https://github.com/xmr-me/xmrcord/releases/latest).
 2. Feche o Discord (o instalador oferece fazer isso).
 3. Abra o `XmrcordInstaller.exe`, marque as versões do Discord que você usa (Stable / PTB / Canary)
    e clique em **Instalar**.
